@@ -2,119 +2,79 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台北市污染監測地圖系統</title>
-    
+    <title>台北即時空氣品質監測地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; }
         #map { height: 100vh; width: 100%; }
-        
-        /* 數據面板樣式 */
-        #data-panel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2);
-            width: 350px;
-            display: none; /* 初始隱藏，由圖層控制觸發 */
+        .aqi-marker {
+            background: white; border: 2px solid #333; border-radius: 50%;
+            text-align: center; line-height: 30px; font-weight: bold;
         }
-        .legend-title { font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <div id="data-panel">
-        <div class="legend-title">交通工具排放污染統計 (汽車)</div>
-        <canvas id="pollutionChart"></canvas>
-        <p style="font-size: 12px; color: #666;">* 數據來源：您提供的查驗/告發統計資料</p>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
-        // 1. 初始化地圖，以台北市為中心 [25.0330, 121.5654]
+        // 1. 初始化地圖
         const map = L.map('map').setView([25.0330, 121.5654], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-        // 2. 設定底圖 (基底層)
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+        // 2. 建立資料層（Toggle 功能關鍵）
+        const aqiLayer = L.layerGroup().addTo(map); 
 
-        const darkMap = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap, © CartoDB'
-        });
-
-        // 3. 定義您的資料層 (Overlay Layers)
-        // 這裡我們先建立一個空的 LayerGroup 作為「汽車污染資料」的開關
-        const carPollutionLayer = L.layerGroup();
+        // 3. API 串接邏輯
+        // 請更換為您在 https://aqicn.org/api/ 申請的 Token
+        const API_TOKEN = "demo"; // 暫時用 demo，之後請換成您申請的
         
-        // 模擬從您的 CSV 提取的關鍵數據 (例如：90-100年的告發率)
-        const carData = {
-            labels: ['90年', '91年', '92年', '93年', '94年', '95年', '96年', '97年', '98年', '99年', '100年'],
-            datasets: [{
-                label: '告發率 (%)',
-                data: [13.2, 12.8, 11.5, 10.9, 11.1, 11.4, 12.4, 5.7, 6.6, 1.8, 3.1],
-                borderColor: 'rgb(255, 99, 132)',
-                tension: 0.1
-            }]
-        };
+        // 台北市的主要監測站
+        const stations = ["taipei", "songshan", "wanhua", "guanting", "shilin"];
 
-        // 4. 圖層控制邏輯 (Toggle On/Off)
-        const baseMaps = {
-            "標準地圖": osm,
-            "深色地圖": darkMap
-        };
+        async function fetchAQIData() {
+            aqiLayer.clearLayers(); // 重新整理前先清除舊標記
 
-        const overlayMaps = {
-            "汽車污染統計數據": carPollutionLayer
-            // 您未來可以在這裡加入新資料層，例如：
-            // "工廠排放": factoryLayer,
-            // "空氣品質感測器": aqSensorLayer
-        };
+            for (let city of stations) {
+                try {
+                    const response = await fetch(`https://api.waqi.info/feed/${city}/?token=${API_TOKEN}`);
+                    const result = await response.json();
+                    
+                    if (result.status === "ok") {
+                        const { lat, lon } = result.data.city.geo;
+                        const aqi = result.data.aqi;
+                        const name = result.data.city.name;
 
-        L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+                        // 根據 AQI 數值改變顏色
+                        let color = aqi <= 50 ? "#009966" : aqi <= 100 ? "#ffde33" : "#ff9933";
 
-        // 5. 監聽圖層切換事件，連動顯示/隱藏數據面板
-        map.on('overlayadd', function(event) {
-            if (event.name === "汽車污染統計數據") {
-                document.getElementById('data-panel').style.display = 'block';
-                renderChart();
-            }
-        });
-
-        map.on('overlayremove', function(event) {
-            if (event.name === "汽車污染統計數據") {
-                document.getElementById('data-panel').style.display = 'none';
-            }
-        });
-
-        // 6. 渲染圖表函數
-        let myChart = null;
-        function renderChart() {
-            const ctx = document.getElementById('pollutionChart').getContext('2d');
-            if (myChart) myChart.destroy(); // 避免重複渲染
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: carData,
-                options: {
-                    responsive: true,
-                    scales: { y: { beginAtZero: true } }
+                        // 在地圖上畫出標記
+                        L.circleMarker([lat, lon], {
+                            radius: 12,
+                            fillColor: color,
+                            color: "#000",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).addTo(aqiLayer)
+                          .bindPopup(`<b>站點：${name}</b><br>即時 AQI：${aqi}<br>更新時間：${result.data.time.s}`);
+                    }
+                } catch (e) {
+                    console.error("無法取得數據:", e);
                 }
-            });
+            }
         }
 
-        // 7. 預設在地圖上標記台北市政府作為中心參考點
-        L.marker([25.0330, 121.5654]).addTo(carPollutionLayer)
-            .bindPopup("<b>台北市交通監測中心</b><br>汽車污染數據已載入。");
+        // 4. 圖層控制 (Toggle On/Off)
+        const overlayMaps = {
+            "即時空氣品質 (AQI)": aqiLayer
+        };
+        L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
+
+        // 執行初始抓取，並設定每 5 分鐘自動更新一次
+        fetchAQIData();
+        setInterval(fetchAQIData, 300000); 
 
     </script>
 </body>
