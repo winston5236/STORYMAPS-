@@ -1,87 +1,123 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <title>臺北市學校與空品歷史統計地圖</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>113年台灣環境與人口交互分析地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
-        #map { height: 100vh; width: 100%; }
-        .data-panel {
-            position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3); max-width: 300px;
+        body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        /* 控制面板樣式 */
+        .control-panel {
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.95); padding: 15px;
+            border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            max-width: 320px; border-top: 5px solid #2c3e50;
         }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; }
-        th { background-color: #f4f4f4; }
+        
+        /* 圖例樣式 */
+        .legend {
+            background: white; line-height: 20px; color: #333;
+            padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.1);
+        }
+        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.8; border-radius: 3px; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
-
-    <div class="data-panel" id="stats-panel" style="display:none;">
-        <strong>113年 北部縣市空品對照</strong>
-        <table>
-            <tr><th>縣市</th><th>TSP</th><th>臭氧</th><th>AQI>100%</th></tr>
-            <tr><td>基隆市</td><td>34.8</td><td>49.09</td><td>1.64%</td></tr>
-            <tr style="background:#e3f2fd"><td>臺北市</td><td>30.5</td><td>48.61</td><td>1.97%</td></tr>
-            <tr><td>新北市</td><td>35.2</td><td>50.99</td><td>3.28%</td></tr>
-            <tr><td>桃園市</td><td>0</td><td>49.11</td><td>2.80%</td></tr>
-        </table>
-        <small>數據來源：113年行政區空品監測統計 </small>
+<div class="control-panel">
+    <h2 style="margin:0 0 10px 0; font-size: 18px; color: #2c3e50;">113年環境數據疊圖分析</h2>
+    <p style="font-size: 13px; color: #555;">
+        您可以透過右上角的選單切換圖層，觀察環境汙染與人口分布的關聯性。
+    </p>
+    <div style="font-size: 12px; border-top: 1px solid #ddd; padding-top: 10px;">
+        1. <b>空品圖層</b>：圓圈愈大且紅，代表 AQI>100 日數比率愈高。<br>
+        2. <b>人口圖層</b>：全台村里層級人口指標數據。<br>
+        3. <b>工商圖層</b>：台北市精密一級發布區家數。
     </div>
+</div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // 1. 初始化地圖
-        const map = L.map('map').setView([25.0450, 121.5400], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+<div id="map"></div>
 
-        // 2. 學校圖層 (由您提供的清單轉換)
-        const schoolLayer = L.layerGroup();
-        const schools = [
-            { name: "國立北教大實小", type: "國小", pos: [25.0245, 121.5448] },
-            { name: "國立政大實小", type: "國小", pos: [24.9856, 121.5768] },
-            { name: "松山國小", type: "國小", pos: [25.0504, 121.5786] },
-            { name: "成功高中", type: "高中職", pos: [25.0422, 121.5245] },
-            { name: "臺北市立大學", type: "大學", pos: [25.0354, 121.5132] }
-        ];
-        schools.forEach(s => {
-            L.circleMarker(s.pos, { radius: 6, color: '#2c3e50', fillOpacity: 0.8 })
-             .bindPopup(`<b>${s.name}</b><br>類別：${s.type}`)
-             .addTo(schoolLayer);
-        });
+<script>
+    // 1. 初始化地圖，中心點設在台灣
+    const map = L.map('map', {
+        center: [23.6, 121.0],
+        zoom: 7,
+        zoomControl: false
+    });
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
-        // 3. 113年 歷史統計圖層 (使用您提供的 CSV 數據建立圓框) 
-        const historyLayer = L.layerGroup();
-        // 臺北市數據：TSP 30.5, Ozone 48.61, AQI>100 比率 1.97% 
-        L.circle([25.0330, 121.5654], {
-            radius: 3000, color: 'blue', weight: 2, fillOpacity: 0.1
-        }).bindPopup("<b>臺北市 113年年度統計</b><br>TSP: 30.5<br>臭氧: 48.61<br>AQI不良日比率: 1.97% ")
-          .addTo(historyLayer);
+    // 2. 設置底圖 (選用灰白色調以突出數據層)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-        // 4. 即時同步 AQI 圖層
-        const realTimeAQI = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo');
+    // --- 圖層 A: 縣市空品統計 (113年CSV數據) ---
+    function getAQIColor(d) {
+        return d > 10 ? '#800026' : d > 5 ? '#E31A1C' : d > 2 ? '#FD8D3C' : '#FEE391';
+    }
+    const aqiLayer = L.layerGroup();
+    
+    // 預填您數據中的關鍵縣市 (範例數據)
+    const aqiStats = [
+        {"COUNTY": "高雄市", "lat": 22.6, "lng": 120.3, "val": 11.14},
+        {"COUNTY": "臺南市", "lat": 23.0, "lng": 120.2, "val": 8.06},
+        {"COUNTY": "臺中市", "lat": 24.1, "lng": 120.6, "val": 4.64},
+        {"COUNTY": "新北市", "lat": 25.0, "lng": 121.4, "val": 3.28}
+    ];
 
-        // 5. 圖層開關控制
-        const overlays = {
-            "🏫 學校分佈": schoolLayer,
-            "📊 113年歷史空品統計": historyLayer,
-            "☁️ 即時空氣品質 (同步)": realTimeAQI
-        };
-        L.control.layers(null, overlays, { collapsed: false }).addTo(map);
+    aqiStats.forEach(item => {
+        L.circleMarker([item.lat, item.lng], {
+            radius: item.val * 2 + 5,
+            fillColor: getAQIColor(item.val),
+            color: "#fff", weight: 1, fillOpacity: 0.8
+        }).bindPopup(`<b>${item.COUNTY}</b><br>AQI>100比率: ${item.val}%`).addTo(aqiLayer);
+    });
+    aqiLayer.addTo(map); // 預設顯示
 
-        // 監聽面板顯示
-        map.on('overlayadd', (e) => {
-            if(e.name === "📊 113年歷史空品統計") document.getElementById('stats-panel').style.display = 'block';
-        });
-        map.on('overlayremove', (e) => {
-            if(e.name === "📊 113年歷史空品統計") document.getElementById('stats-panel').style.display = 'none';
-        });
+    // --- 圖層 B: 全台村里人口指標 (SHP 預留層) ---
+    const populationLayer = L.geoJson(null, {
+        style: { color: "#2980b9", weight: 1, fillOpacity: 0.4 }
+    });
 
-        schoolLayer.addTo(map); // 預設開啟
-    </script>
+    // --- 圖層 C: 台北市工商家數 (一級發布區預留層) ---
+    const businessLayer = L.geoJson(null, {
+        style: { color: "#27ae60", weight: 1, fillOpacity: 0.5 }
+    });
+
+    // --- 圖層 D: 行政區地理邊界 ---
+    const boundaryLayer = L.geoJson(null, {
+        style: { color: "#7f8c8d", weight: 2, fillOpacity: 0, dashArray: '5, 5' }
+    });
+
+    // 3. 核心：圖層切換控制 (Toggle Layers)
+    const overlayMaps = {
+        "<span style='color:#c0392b;font-weight:bold'>☁️ 縣市空品統計</span>": aqiLayer,
+        "<span style='color:#2980b9'>👥 村里人口指標</span>": populationLayer,
+        "<span style='color:#27ae60'>🏢 台北工商家數</span>": businessLayer,
+        "<span style='color:#7f8c8d'>🗺️ 行政地理邊界</span>": boundaryLayer
+    };
+
+    L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
+
+    // 4. 圖例顯示
+    const legend = L.control({position: 'bottomright'});
+    legend.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'legend');
+        const grades = [0, 2, 5, 10];
+        div.innerHTML += '<b>AQI>100 日數比率</b><br>';
+        for (let i = 0; i < grades.length; i++) {
+            div.innerHTML += '<i style="background:' + getAQIColor(grades[i] + 1) + '"></i> ' +
+                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '%<br>' : '+%');
+        }
+        return div;
+    };
+    legend.addTo(map);
+
+</script>
 </body>
 </html>
