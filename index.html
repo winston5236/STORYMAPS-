@@ -1,124 +1,154 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>113年台灣環境與人口交互分析地圖</title>
+    <title>台灣空間數據疊圖系統 - 113年統計</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { margin: 0; padding: 0; font-family: "Microsoft JhengHei", sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
-        /* 控制面板樣式 */
-        .control-panel {
-            position: absolute; top: 10px; left: 50px; z-index: 1000;
-            background: rgba(255, 255, 255, 0.95); padding: 15px;
-            border-radius: 8px; box-shadow: 0 0 20px rgba(0,0,0,0.2);
-            max-width: 320px; border-top: 5px solid #2c3e50;
-        }
-        
         /* 圖例樣式 */
         .legend {
-            background: white; line-height: 20px; color: #333;
-            padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.1);
+            background: white;
+            padding: 10px;
+            line-height: 18px;
+            color: #333;
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
         }
-        .legend i { width: 18px; height: 18px; float: left; margin-right: 8px; opacity: 0.8; border-radius: 3px; }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+        .info-box {
+            position: absolute;
+            top: 10px;
+            left: 50px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.9);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
 
-<div class="control-panel">
-    <h2 style="margin:0 0 10px 0; font-size: 18px; color: #2c3e50;">113年環境數據疊圖分析</h2>
-    <p style="font-size: 13px; color: #555;">
-        您可以透過右上角的選單切換圖層，觀察環境汙染與人口分布的關聯性。
-    </p>
-    <div style="font-size: 12px; border-top: 1px solid #ddd; padding-top: 10px;">
-        1. <b>空品圖層</b>：圓圈愈大且紅，代表 AQI>100 日數比率愈高。<br>
-        2. <b>人口圖層</b>：全台村里層級人口指標數據。<br>
-        3. <b>工商圖層</b>：台北市精密一級發布區家數。
-    </div>
+<div class="info-box">
+    <h3 style="margin:0 0 5px 0;">113年數據分析圖層</h3>
+    <small>點擊右上角控制項切換圖層</small>
 </div>
 
 <div id="map"></div>
 
-<script>
-    // 1. 初始化地圖，中心點設在台灣
-    const map = L.map('map', {
-        center: [23.6, 121.0],
-        zoom: 7,
-        zoomControl: false
-    });
-    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    // 2. 設置底圖 (選用灰白色調以突出數據層)
+<script>
+    // 1. 初始化地圖 (中心點設在台灣)
+    var map = L.map('map').setView([23.7, 121.0], 7);
+
+    // 2. 加入底圖 (使用 CartoDB 乾淨底圖，較能突顯數據圖層)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap'
+        attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(map);
 
-    // --- 圖層 A: 縣市空品統計 (113年CSV數據) ---
-    function getAQIColor(d) {
-        return d > 10 ? '#800026' : d > 5 ? '#E31A1C' : d > 2 ? '#FD8D3C' : '#FEE391';
-    }
-    const aqiLayer = L.layerGroup();
+    // --- 數據填入區 (重要：請將 Mapshaper 轉換出的 GeoJSON 貼在括號內) ---
     
-    // 預填您數據中的關鍵縣市 (範例數據)
-    const aqiStats = [
-        {"COUNTY": "高雄市", "lat": 22.6, "lng": 120.3, "val": 11.14},
-        {"COUNTY": "臺南市", "lat": 23.0, "lng": 120.2, "val": 8.06},
-        {"COUNTY": "臺中市", "lat": 24.1, "lng": 120.6, "val": 4.64},
-        {"COUNTY": "新北市", "lat": 25.0, "lng": 121.4, "val": 3.28}
-    ];
+    // 圖層 A: 縣市空品統計 (預設開啟)
+    var aqiData = null; // [請在此貼上 113年行政區空氣品質_縣市.json 的內容]
 
-    aqiStats.forEach(item => {
-        L.circleMarker([item.lat, item.lng], {
-            radius: item.val * 2 + 5,
-            fillColor: getAQIColor(item.val),
-            color: "#fff", weight: 1, fillOpacity: 0.8
-        }).bindPopup(`<b>${item.COUNTY}</b><br>AQI>100比率: ${item.val}%`).addTo(aqiLayer);
-    });
-    aqiLayer.addTo(map); // 預設顯示
+    // 圖層 B: 全台村里人口指標
+    var popData = null; // [請在此貼上 113年12月行政區人口指標_全台村里.json 的內容]
 
-   // --- 圖層 B: 全台村里人口指標 ---
-// 將 null 替換為您轉換後的 GeoJSON 物件
-const populationLayer = L.geoJson(您的村里數據JSON, {
-    style: { color: "#2980b9", weight: 1, fillOpacity: 0.4 }
-});
+    // 圖層 C: 台北市工商家數 (一級發布區)
+    var bizData = null; // [請在此貼上 113年12月臺北市工商家數.json 的內容]
 
-// --- 圖層 C: 台北市工商家數 ---
-const businessLayer = L.geoJson(您的工商數據JSON, {
-    style: { color: "#27ae60", weight: 1, fillOpacity: 0.5 }
-});
+    // --- 著色函數 (根據您的 CSV COLUMN4: AQI>100日數比率) ---
+    function getAqiColor(d) {
+        return d > 10 ? '#800026' : // 極高
+               d > 7  ? '#BD0026' :
+               d > 5  ? '#E31A1C' :
+               d > 3  ? '#FC4E2A' :
+               d > 1  ? '#FD8D3C' :
+                        '#FEB24C'; // 較低
+    }
 
-// --- 圖層 D: 行政區地理邊界 ---
-const boundaryLayer = L.geoJson(您的邊界數據JSON, {
-    style: { color: "#7f8c8d", weight: 2, fillOpacity: 0, dashArray: '5, 5' }
-});
+    // 3. 實作縣市空品圖層
+    var aqiLayer = L.layerGroup();
+    if (aqiData) {
+        L.geoJson(aqiData, {
+            style: function(feature) {
+                return {
+                    fillColor: getAqiColor(feature.properties.COLUMN4), // 對應 CSV 數值
+                    weight: 1.5,
+                    opacity: 1,
+                    color: 'white',
+                    fillOpacity: 0.7
+                };
+            },
+            onEachFeature: function(feature, layer) {
+                layer.bindPopup(
+                    "<b>縣市名稱: " + feature.properties.COUNTY + "</b><br>" +
+                    "AQI > 100 日數比率: " + feature.properties.COLUMN4 + "%"
+                );
+            }
+        }).addTo(aqiLayer);
+    }
+    aqiLayer.addTo(map); // 預設加入地圖
 
-    // 3. 核心：圖層切換控制 (Toggle Layers)
-    const overlayMaps = {
-        "<span style='color:#c0392b;font-weight:bold'>☁️ 縣市空品統計</span>": aqiLayer,
-        "<span style='color:#2980b9'>👥 村里人口指標</span>": populationLayer,
-        "<span style='color:#27ae60'>🏢 台北工商家數</span>": businessLayer,
-        "<span style='color:#7f8c8d'>🗺️ 行政地理邊界</span>": boundaryLayer
+    // 4. 實作人口指標圖層
+    var popLayer = L.layerGroup();
+    if (popData) {
+        L.geoJson(popData, {
+            style: { color: "#2980b9", weight: 0.5, fillOpacity: 0.4 },
+            onEachFeature: function(feature, layer) {
+                layer.bindPopup("村里: " + feature.properties.VILLAGE + "<br>人口密度: " + feature.properties.P_DEN);
+            }
+        }).addTo(popLayer);
+    }
+
+    // 5. 實作工商家數圖層
+    var bizLayer = L.layerGroup();
+    if (bizData) {
+        L.geoJson(bizData, {
+            style: { color: "#27ae60", weight: 1, fillOpacity: 0.5 },
+            onEachFeature: function(feature, layer) {
+                layer.bindPopup("台北市工商發布區數據");
+            }
+        }).addTo(bizLayer);
+    }
+
+    // 6. 圖層切換控制項
+    var overlayMaps = {
+        "☁️ 縣市空品統計 (AQI > 100比率)": aqiLayer,
+        "👥 村里人口指標": popLayer,
+        "🏢 台北市工商家數": bizLayer
     };
 
-    L.control.layers(null, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
+    L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
 
-    // 4. 圖例顯示
-    const legend = L.control({position: 'bottomright'});
+    // 7. 新增右下角圖例
+    var legend = L.control({position: 'bottomright'});
     legend.onAdd = function (map) {
-        const div = L.DomUtil.create('div', 'legend');
-        const grades = [0, 2, 5, 10];
-        div.innerHTML += '<b>AQI>100 日數比率</b><br>';
-        for (let i = 0; i < grades.length; i++) {
-            div.innerHTML += '<i style="background:' + getAQIColor(grades[i] + 1) + '"></i> ' +
-                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '%<br>' : '+%');
+        var div = L.DomUtil.create('div', 'legend'),
+            grades = [0, 1, 3, 5, 7, 10],
+            labels = ["<strong>AQI > 100 比率 (%)</strong><br>"];
+        for (var i = 0; i < grades.length; i++) {
+            div.innerHTML +=
+                '<i style="background:' + getAqiColor(grades[i] + 0.1) + '"></i> ' +
+                grades[i] + (grades[i + 1] ? '&ndash;' + grades[i + 1] + '<br>' : '+');
         }
         return div;
     };
     legend.addTo(map);
 
 </script>
+
 </body>
 </html>
