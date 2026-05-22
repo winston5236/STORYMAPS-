@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edimax 空氣盒子 (LASS) 全台即時 PM2.5 監測地圖</title>
+    <title>台灣空白基礎地圖 (Leaflet 環境測試)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
@@ -18,242 +18,37 @@
             padding: 0;
             background-color: #f1f5f9;
         }
-        .custom-tooltip {
-            background: rgba(255, 255, 255, 0.95);
-            border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            padding: 4px 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
     </style>
 </head>
 <body class="overflow-hidden font-sans">
 
-    <!-- 載入中遮罩 -->
-    <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center z-[9999] transition-opacity duration-300">
-        <div id="loading-content" class="flex flex-col items-center justify-center p-4">
-            <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent mb-4"></div>
-            <p class="text-white font-medium text-lg">正在載入真實即時數據...</p>
-            <p class="text-slate-400 text-xs mt-2">正在透過中研院平台獲取全台空氣盒子即時 GZIP 資料並進行串流解壓縮...</p>
-        </div>
-    </div>
-
     <!-- 左上角懸浮式標題面板 -->
     <div class="absolute top-4 left-16 bg-white/95 backdrop-blur px-5 py-3 rounded-lg shadow-lg z-[1000] border border-slate-200 pointer-events-auto">
-        <h1 class="text-lg font-bold text-slate-800 flex items-center gap-1.5">
-            <span class="animate-pulse inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-            Edimax 空氣盒子全台即時監測
-        </h1>
-        <p class="text-[11px] text-slate-500 mt-1">點擊縣市：自動放大聚焦 | 點擊彩色圓點：檢視該測站即時溫濕度</p>
+        <h1 class="text-lg font-bold text-slate-800">🌍 台灣空白基礎地圖</h1>
+        <p class="text-[11px] text-slate-500 mt-1">此地圖無任何外部資料與運作邏輯，適合用來驗證本機環境是否能正常開啟地圖</p>
     </div>
 
     <!-- 地圖主容器 -->
     <div id="map"></div>
 
-    <!-- 右下角動態圖例面板 -->
-    <div id="legend-panel" class="absolute bottom-4 right-4 bg-white/95 backdrop-blur p-4 rounded-lg shadow-lg z-[1000] max-h-[350px] overflow-y-auto w-64 border border-slate-200">
-        <h4 class="text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5 mb-2.5">PM2.5 即時濃度分級</h4>
-        <div class="space-y-1.5 pl-1">
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#7f1d1d"></span>&gt; 250 µg/m³ (極度危害)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#a855f7"></span>150.5 - 250.4 µg/m³ (非常不健康)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#ef4444"></span>54.5 - 150.4 µg/m³ (不健康)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#f97316"></span>35.5 - 54.4 µg/m³ (對敏感群不健康)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#eab308"></span>15.5 - 35.4 µg/m³ (普通)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#10b981"></span>0.0 - 15.4 µg/m³ (良好)</div>
-        </div>
-        <p class="text-[10px] text-slate-400 border-t border-slate-100 pt-1.5 mt-2.5">數據來源：中研院 LASS 社群與訊舟科技 (Edimax) 開放 API</p>
-    </div>
-
     <script>
-        // 1. 初始化全螢幕地圖，並啟用高效率 Canvas 渲染引擎以承載上千點位
+        // 初始化地圖，並將視角中心定位在台灣
         const map = L.map('map', {
             center: [23.85, 121.0],
             zoom: 8,
             minZoom: 6,
-            maxZoom: 16,
-            zoomControl: true,
-            renderer: L.canvas() 
+            maxZoom: 18,
+            zoomControl: true
         });
 
+        // 將縮放控制按鈕放置於左上角
         map.zoomControl.setPosition('topleft');
 
+        // 載入 CartoDB Positron 極簡灰階底圖
+        // （此底圖圖片載入不受 file:/// 安全政策限制，雙擊檔案即可直接看到地圖）
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(map);
-
-        // 2. PM2.5 顏色分級
-        function getPm25Color(v) {
-            if (v === undefined || v === null || v < 0) return '#cbd5e1';
-            return v > 250.4 ? '#7f1d1d' : 
-                   v > 150.4 ? '#a855f7' : 
-                   v > 54.4  ? '#ef4444' : 
-                   v > 35.4  ? '#f97316' : 
-                   v > 15.4  ? '#eab308' : 
-                               '#10b981';  
-        }
-
-        // 3. API 串接與 Proxy 設定 (取得 LASS / Edimax 官方壓縮檔)
-        const airboxUrl = 'https://corsproxy.io/?https://pm25.lass-net.org/data/last-all-airbox.json.gz';
-        const airboxBackupUrl = 'https://api.allorigins.win/raw?url=https://pm25.lass-net.org/data/last-all-airbox.json.gz';
-        const countyUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
-
-        // 4. 下載與「本地即時解壓縮」核心代碼 (DecompressionStream 串流解壓)
-        async function fetchAndDecompressGzip(url) {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error("HTTP 狀態異常: " + response.status);
-            
-            if (typeof DecompressionStream !== 'undefined') {
-                const ds = new DecompressionStream('gzip');
-                const decompressedStream = response.body.pipeThrough(ds);
-                const text = await new Response(decompressedStream).text();
-                return JSON.parse(text);
-            } else {
-                throw new Error("您的瀏覽器不支援原生 GZIP 解壓縮。");
-            }
-        }
-
-        // 5. 下載行政區界線 JSON (無壓縮)
-        function fetchJson(url) {
-            return fetch(url).then(res => {
-                if (!res.ok) throw new Error("載入失敗：" + res.status);
-                return res.json();
-            });
-        }
-
-        // 6. 同步載入圖資與解壓空氣盒子數據
-        Promise.all([
-            fetchJson(countyUrl),
-            fetchAndDecompressGzip(airboxUrl).catch(() => fetchAndDecompressGzip(airboxBackupUrl))
-        ]).then(([countyGeoJson, airboxData]) => {
-            
-            // 載入成功，淡出並關閉遮罩
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) {
-                overlay.style.opacity = '0';
-                setTimeout(() => overlay.remove(), 300);
-            }
-
-            // A. 渲染行政區邊界圖層（保留您最喜歡的點擊自動放大定位功能）
-            L.geoJSON(countyGeoJson, {
-                style: {
-                    fillColor: '#334155',
-                    weight: 1.2,
-                    opacity: 0.9,
-                    color: '#94a3b8',
-                    fillOpacity: 0.03  
-                },
-                onEachFeature: function(feature, layer) {
-                    const countyName = feature.properties.COUNTYNAME || feature.properties.COUNTY || "";
-                    
-                    layer.on({
-                        click: function(e) {
-                            // 點擊縣市：自動定位並放大
-                            map.fitBounds(e.target.getBounds());
-                        },
-                        mouseover: function(e) {
-                            e.target.setStyle({
-                                weight: 2.2,
-                                color: '#475569',
-                                fillOpacity: 0.08
-                            });
-                        },
-                        mouseout: function(e) {
-                            e.target.setStyle({
-                                weight: 1.2,
-                                color: '#94a3b8',
-                                fillOpacity: 0.03
-                            });
-                        }
-                    });
-
-                    layer.bindTooltip(`<div class="font-bold text-slate-700">${countyName}</div>`, { 
-                        sticky: true, 
-                        className: 'custom-tooltip' 
-                    });
-                }
-            }).addTo(map);
-
-            // B. 渲染空氣盒子即時點位
-            if (airboxData && airboxData.feeds) {
-                airboxData.feeds.forEach(feed => {
-                    const lat = parseFloat(feed.gps_lat);
-                    const lon = parseFloat(feed.gps_lon);
-
-                    // 篩選正常的台灣島嶼周邊經緯度座標
-                    if (!isNaN(lat) && !isNaN(lon) && lat > 21.0 && lat < 26.6 && lon > 117.5 && lon < 122.5) {
-                        const pm25 = feed.s_d0;
-                        const temp = feed.s_t0;
-                        const humi = feed.s_h0;
-                        const siteName = feed.SiteName || "空氣盒子微型感測器";
-                        const updatedTime = feed.timestamp ? new Date(feed.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : "無提供更新時間";
-
-                        // 建立圓點標記
-                        const marker = L.circleMarker([lat, lon], {
-                            radius: 5,
-                            fillColor: getPm25Color(pm25),
-                            color: '#ffffff', 
-                            weight: 1,
-                            opacity: 0.9,
-                            fillOpacity: 0.85
-                        });
-
-                        // 彈出提示資訊視窗
-                        const popupHtml = `
-                            <div class="p-1 min-w-[200px]">
-                                <div class="font-bold text-slate-800 text-sm border-b border-slate-100 pb-1.5 mb-2 flex items-center gap-1">
-                                    <span class="inline-block h-1.5 w-1.5 rounded-full" style="background:${getPm25Color(pm25)}"></span>
-                                    ${siteName}
-                                </div>
-                                <div class="space-y-1.5 text-xs">
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500">PM2.5 濃度：</span>
-                                        <span class="font-extrabold text-slate-800">${pm25} µg/m³</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500">即時溫度：</span>
-                                        <span class="font-semibold text-slate-700">${temp} °C</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500">即時濕度：</span>
-                                        <span class="font-semibold text-slate-700">${humi} %</span>
-                                    </div>
-                                    <div class="border-t border-slate-100 pt-1.5 mt-2 text-[10px] text-slate-400 flex flex-col">
-                                        <span>數據更新時間：</span>
-                                        <span class="font-mono mt-0.5 text-slate-500">${updatedTime}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-
-                        marker.bindPopup(popupHtml);
-                        marker.addTo(map);
-                    }
-                });
-            }
-
-        }).catch(err => {
-            console.error("即時空氣盒子數據載入或解壓縮失敗：", err);
-            
-            // 網路受阻或解壓縮失敗時，解除黑屏遮罩並顯示引導說明
-            const container = document.getElementById('loading-overlay');
-            if (container) {
-                container.innerHTML = `
-                    <div class="bg-white p-8 rounded-xl shadow-xl max-w-lg text-center border border-slate-200">
-                        <p class="text-red-500 font-bold text-2xl mb-4">⚠️ 無法載入即時監測數據</p>
-                        <p class="text-slate-600 text-sm mb-6 leading-relaxed">
-                            這通常是因為您直接在瀏覽器中雙擊開啟了本地 HTML 檔案（網址列為 <code class="bg-slate-100 px-1 py-0.5 rounded text-red-600">file:///</code>），導致瀏覽器安全性政策阻擋了跨網域請求 (CORS)。
-                        </p>
-                        <div class="text-left bg-slate-50 p-4 rounded border border-slate-200 mb-6 text-xs text-slate-700 space-y-2">
-                            <p class="font-bold text-slate-950">💡 請嘗試以下解決方案：</p>
-                            <p>1. <strong>使用本地伺服器開啟</strong>：在 VS Code 中開啟此檔案，右鍵選擇 <span class="font-semibold text-slate-900">「Open with Live Server」</span>，或在終端機運行指令 <code class="bg-slate-200/80 px-1 rounded font-mono">python -m http.server 8000</code> 開啟網址。</p>
-                            <p>2. <strong>上傳至免費代管空間</strong>：將本檔案上傳至 <span class="font-semibold text-slate-900">GitHub Pages</span>、<span class="font-semibold text-slate-900">Vercel</span> 或 <span class="font-semibold text-slate-900">Netlify</span>。當網頁轉為安全的 <code class="text-slate-900 font-bold">https://</code> 協議後即可正常在任何裝置開啟。</p>
-                            <p>3. <strong>檢查網路連線</strong>：部分企業、校園或家用寬頻防火牆，可能會阻擋 API 代理伺服器（corsproxy.io）。</p>
-                        </div>
-                        <button onclick="window.location.reload()" class="bg-slate-800 text-white px-6 py-2.5 rounded font-bold text-sm hover:bg-slate-700 transition">重新整理網頁</button>
-                    </div>
-                `;
-            }
-        });
     </script>
 </body>
 </html>
