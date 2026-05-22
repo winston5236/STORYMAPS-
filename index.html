@@ -7,23 +7,17 @@
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
-        
-        /* 側邊綜合資料面板樣式 */
         .data-panel {
             position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-            background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.2); max-width: 350px;
-            max-height: 80vh; overflow-y: auto; border: 1px solid #ccc;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3); max-width: 350px;
+            max-height: 80vh; overflow-y: auto;
         }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; margin-top: 5px; }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
-        th { background-color: #f8f9fa; position: sticky; top: 0; color: #333; }
-        .panel-title { font-size: 16px; font-weight: bold; display: block; margin-bottom: 8px; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
-        strong { font-size: 12px; color: #2980b9; display: block; margin-top: 10px; }
-        small { color: #7f8c8d; font-size: 10px; line-height: 1.4; display: block; margin-top: 10px; }
-        
-        /* 自定義 Popup 樣式 */
-        .custom-popup .leaflet-popup-content-wrapper { background: #fff; color: #333; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }
+        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; }
+        th { background-color: #f4f4f4; position: sticky; top: 0; }
+        .panel-title { font-weight: bold; display: block; margin-bottom: 5px; color: #2c3e50; border-bottom: 2px solid #3498db; }
+        small { color: #666; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -58,25 +52,18 @@
             <tr><td>人口密度</td><td>9,215</td><td>人/km²</td></tr>
         </table>
         
-        <small>數據來源：環境部空品資料、內政部人口統計、臺北市工商普查統計資料庫</small>
+        <small>數據來源：環境部空品資料、內政部人口統計、臺北市工商普查</small>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- 1. 初始化地圖 ---
-        const map = L.map('map', {
-            center: [25.0450, 121.5400],
-            zoom: 12,
-            zoomControl: true
-        });
+        // 1. 初始化地圖
+        const map = L.map('map').setView([25.0450, 121.5400], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
-        const baseLayers = {
-            "標準地圖": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap'
-            }).addTo(map)
-        };
-
-        // --- 2. 學校圖層 (靜態標註) ---
+        // 2. 學校圖層
         const schoolLayer = L.layerGroup();
         const schools = [
             { name: "國立北教大實小", type: "國小", pos: [25.0245, 121.5448] },
@@ -85,69 +72,47 @@
             { name: "成功高中", type: "高中職", pos: [25.0422, 121.5245] },
             { name: "臺北市立大學", type: "大學", pos: [25.0354, 121.5132] }
         ];
-
         schools.forEach(s => {
-            L.circleMarker(s.pos, { 
-                radius: 7, 
-                color: '#2c3e50', 
-                fillColor: '#34495e', 
-                fillOpacity: 0.9,
-                weight: 2
-            })
-            .bindPopup(`<b>${s.name}</b><br>教育類別：${s.type}`)
-            .addTo(schoolLayer);
+            L.circleMarker(s.pos, { radius: 6, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.8 })
+             .bindPopup(`<b>${s.name}</b><br>類別：${s.type}`)
+             .addTo(schoolLayer);
         });
 
-        // --- 3. 綜合資料圖層 (區域視覺化) ---
+        // 3. 綜合資料圖層 (整合空氣品質與工商數據)
         const dataLayer = L.layerGroup();
         
-        // 臺北市核心影響圈示意
+        // 臺北市核心區
         L.circle([25.0330, 121.5654], {
-            radius: 4500, 
-            color: '#e67e22', 
-            weight: 2, 
-            fillColor: '#f39c12',
-            fillOpacity: 0.15
+            radius: 4000, color: '#e67e22', weight: 2, fillOpacity: 0.1
         }).bindPopup(`
-            <div style="width:220px">
-                <b style="font-size:14px; color:#d35400;">臺北市 113年度綜合觀察</b><hr style="margin:5px 0">
-                <b>💨 空氣：</b>AQI > 100 日數比率 1.97%<br>
-                <b>🏢 工商：</b>總登記家數突破 24 萬家<br>
-                <b>👥 人口：</b>大安、信義區人口密度極高<br>
-                <span style="color:blue; font-size:10px;">* 詳細數據請見右下方資訊面板</span>
+            <div style="width:200px">
+                <b>臺北市年度綜合指標</b><hr>
+                <b>空品：</b>AQI不良率 1.97%<br>
+                <b>工商：</b>總家數約 24 萬家<br>
+                <b>人口：</b>密度最高區(大安區)
             </div>
         `).addTo(dataLayer);
 
-        // --- 4. WAQI 即時空品圖層 ---
-        const realTimeAQI = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo', {
-            attribution: 'Air Quality Tile &copy; <a href="https://waqi.info">waqi.info</a>'
-        });
+        // 4. 即時同步 AQI 圖層
+        const realTimeAQI = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo');
 
-        // --- 5. 圖層控制與面板聯動 ---
+        // 5. 圖層開關控制
         const overlays = {
             "🏫 學校分佈": schoolLayer,
             "📊 113年綜合統計資料": dataLayer,
-            "☁️ 即時空氣品質 (動態)": realTimeAQI
+            "☁️ 即時空氣品質 (同步)": realTimeAQI
         };
+        L.control.layers(null, overlays, { collapsed: false }).addTo(map);
 
-        L.control.layers(null, overlays, { collapsed: false, position: 'topright' }).addTo(map);
-
-        // 聯動邏輯：當勾選「綜合統計資料」時，自動顯示右下角面板
-        map.on('overlayadd', function(e) {
-            if(e.name === "📊 113年綜合統計資料") {
-                document.getElementById('combined-panel').style.display = 'block';
-            }
+        // 監聽面板顯示
+        map.on('overlayadd', (e) => {
+            if(e.name === "📊 113年綜合統計資料") document.getElementById('combined-panel').style.display = 'block';
+        });
+        map.on('overlayremove', (e) => {
+            if(e.name === "📊 113年綜合統計資料") document.getElementById('combined-panel').style.display = 'none';
         });
 
-        map.on('overlayremove', function(e) {
-            if(e.name === "📊 113年綜合統計資料") {
-                document.getElementById('combined-panel').style.display = 'none';
-            }
-        });
-
-        // 預設載入學校圖層
-        schoolLayer.addTo(map);
-
+        schoolLayer.addTo(map); // 預設開啟
     </script>
 </body>
 </html>
