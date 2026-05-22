@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edimax 空氣盒子 (LASS) 全台即時 PM2.5 監測地圖</title>
+    <title>113年行政區空氣品質監測分佈與學校地圖</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
@@ -19,11 +19,11 @@
             background-color: #f1f5f9;
         }
         .custom-tooltip {
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.98);
             border: 1px solid #cbd5e1;
-            border-radius: 4px;
-            padding: 4px 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 6px;
+            padding: 10px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
     </style>
 </head>
@@ -33,18 +33,17 @@
     <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center z-[9999] transition-opacity duration-300">
         <div id="loading-content" class="flex flex-col items-center justify-center">
             <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent mb-4"></div>
-            <p class="text-white font-medium text-lg">正在下載空氣盒子即時 GZIP 壓縮檔...</p>
-            <p class="text-slate-400 text-xs mt-2" id="loading-subtext">現正啟動瀏覽器硬體進行本地即時解壓縮 (DecompressionStream)...</p>
+            <p class="text-white font-medium text-lg">正在載入行政區邊界、學校與污染監測分佈...</p>
+            <p class="text-slate-400 text-xs mt-2">使用極簡版圖資 (89 KB) 加速渲染中</p>
         </div>
     </div>
 
     <!-- 左上角懸浮式標題面板 -->
     <div class="absolute top-4 left-16 bg-white/95 backdrop-blur px-5 py-3 rounded-lg shadow-lg z-[1000] border border-slate-200 pointer-events-auto">
         <h1 class="text-lg font-bold text-slate-800 flex items-center gap-1.5">
-            <span class="animate-pulse inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-            Edimax 空氣盒子全台即時監測
+            <span>🌍</span> 113年行政區空氣品質與學校分佈
         </h1>
-        <p class="text-[11px] text-slate-500 mt-1">點擊縣市：自動放大聚焦 | 點擊彩色圓點：檢視該測站即時溫濕度</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">滑鼠懸停至區塊或點標可檢視詳細數值 | 右上角可切換/疊加圖層</p>
     </div>
 
     <!-- 地圖主容器 -->
@@ -52,201 +51,481 @@
 
     <!-- 右下角動態圖例面板 -->
     <div id="legend-panel" class="absolute bottom-4 right-4 bg-white/95 backdrop-blur p-4 rounded-lg shadow-lg z-[1000] max-h-[350px] overflow-y-auto w-64 border border-slate-200">
-        <h4 class="text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5 mb-2.5">PM2.5 即時濃度分級</h4>
-        <div class="space-y-1.5 pl-1">
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#7f1d1d"></span>&gt; 250 µg/m³ (極度危害)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#a855f7"></span>150.5 - 250.4 µg/m³ (非常不健康)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#ef4444"></span>54.5 - 150.4 µg/m³ (不健康)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#f97316"></span>35.5 - 54.4 µg/m³ (對敏感群不健康)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#eab308"></span>15.5 - 35.4 µg/m³ (普通)</div>
-            <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2.5 rounded-sm mr-2.5" style="background:#10b981"></span>0.0 - 15.4 µg/m³ (良好)</div>
+        <h4 class="text-xs font-bold text-slate-700 border-b border-slate-100 pb-1.5 mb-2.5">分佈圖例說明</h4>
+        <div id="legend-content" class="space-y-4">
+            <!-- 圖例內容由JS根據目前開啟圖層動態生成 -->
         </div>
-        <p class="text-[10px] text-slate-400 border-t border-slate-100 pt-1.5 mt-2.5">數據來源：中研院 LASS 社群與訊舟科技 (Edimax) 開放 API</p>
     </div>
 
     <script>
-        // 1. 初始化全螢幕地圖，並啟用高效率 Canvas 渲染引擎
+        // 1. 113年行政區空氣品質監測統計資料
+        const airData = [
+            {"COUNTY_ID":"65000","COUNTY":"新北市","COLUMN1":35.2,"COLUMN2":50.99,"COLUMN3":0.93,"COLUMN4":3.28},
+            {"COUNTY_ID":"63000","COUNTY":"臺北市","COLUMN1":30.5,"COLUMN2":48.61,"COLUMN3":0.98,"COLUMN4":1.97},
+            {"COUNTY_ID":"68000","COUNTY":"桃園市","COLUMN1":0,"COLUMN2":49.11,"COLUMN3":1.2,"COLUMN4":2.8},
+            {"COUNTY_ID":"66000","COUNTY":"臺中市","COLUMN1":47.8,"COLUMN2":54.52,"COLUMN3":1.3,"COLUMN4":4.64},
+            {"COUNTY_ID":"67000","COUNTY":"臺南市","COLUMN1":42.1,"COLUMN2":55.26,"COLUMN3":1.2,"COLUMN4":8.06},
+            {"COUNTY_ID":"64000","COUNTY":"高雄市","COLUMN1":42.6,"COLUMN2":55.8,"COLUMN3":1.56,"COLUMN4":11.14},
+            {"COUNTY_ID":"10002","COUNTY":"宜蘭縣","COLUMN1":24.9,"COLUMN2":43.69,"COLUMN3":0.78,"COLUMN4":0.55},
+            {"COUNTY_ID":"10004","COUNTY":"新竹縣","COLUMN1":39.8,"COLUMN2":51.68,"COLUMN3":0.85,"COLUMN4":3.96},
+            {"COUNTY_ID":"10005","COUNTY":"苗栗縣","COLUMN1":27.3,"COLUMN2":53.09,"COLUMN3":1.32,"COLUMN4":3.14},
+            {"COUNTY_ID":"10007","COUNTY":"彰化縣","COLUMN1":48.9,"COLUMN2":55.24,"COLUMN3":1.33,"COLUMN4":8.38},
+            {"COUNTY_ID":"10008","COUNTY":"南投縣","COLUMN1":34.6,"COLUMN2":60.52,"COLUMN3":0.96,"COLUMN4":9.43},
+            {"COUNTY_ID":"10009","COUNTY":"雲林縣","COLUMN1":45.7,"COLUMN2":56.19,"COLUMN3":1.35,"COLUMN4":10.66},
+            {"COUNTY_ID":"10010","COUNTY":"嘉義縣","COLUMN1":45.1,"COLUMN2":55.59,"COLUMN3":1.68,"COLUMN4":8.33},
+            {"COUNTY_ID":"10013","COUNTY":"屏東縣","COLUMN1":50.0,"COLUMN2":56.8,"COLUMN3":1.04,"COLUMN4":12.16},
+            {"COUNTY_ID":"10014","COUNTY":"臺東縣","COLUMN1":25.1,"COLUMN2":38.66,"COLUMN3":0.9,"COLUMN4":0.55},
+            {"COUNTY_ID":"10015","COUNTY":"花蓮縣","COLUMN1":28.1,"COLUMN2":41.46,"COLUMN3":0.82,"COLUMN4":0.55},
+            {"COUNTY_ID":"10016","COUNTY":"澎湖縣","COLUMN1":0,"COLUMN2":51.33,"COLUMN3":0.97,"COLUMN4":2.73},
+            {"COUNTY_ID":"10017","COUNTY":"基隆市","COLUMN1":34.8,"COLUMN2":49.09,"COLUMN3":1.13,"COLUMN4":1.64},
+            {"COUNTY_ID":"10018","COUNTY":"新竹市","COLUMN1":34.4,"COLUMN2":49.67,"COLUMN3":1.21,"COLUMN4":3.55},
+            {"COUNTY_ID":"10020","COUNTY":"嘉義市","COLUMN1":49.4,"COLUMN2":59.13,"COLUMN3":1.99,"COLUMN4":10.38},
+            {"COUNTY_ID":"09020","COUNTY":"金門縣","COLUMN1":0,"COLUMN2":56.08,"COLUMN3":1.35,"COLUMN4":16.67},
+            {"COUNTY_ID":"09007","COUNTY":"連江縣","COLUMN1":0,"COLUMN2":57.88,"COLUMN3":0.89,"COLUMN4":15.85}
+        ];
+
+        // 2. 臺北市學校資料
+        const schoolData = [
+            {name: '市立介壽國中', type: '國中', lat: 25.0566, lng: 121.5595, address: '臺北市松山區延壽街401號'},
+            {name: '市立民生國中', type: '國中', lat: 25.0614, lng: 121.5644, address: '臺北市松山區新東街30巷1號'},
+            {name: '市立中山國中', type: '國中', lat: 25.0617, lng: 121.5438, address: '臺北市松山區復興北路361巷7號'},
+            {name: '市立敦化國中', type: '國中', lat: 25.0504, lng: 121.5484, address: '臺北市松山區南京東路三段300號'},
+            {name: '市立興雅國中', type: '國中', lat: 25.0354, lng: 121.5714, address: '臺北市信義區松德路168巷15號'},
+            {name: '市立永吉國中', type: '國中', lat: 25.0454, lng: 121.5746, address: '臺北市信義區松隆路161號'},
+            {name: '市立瑠公國中', type: '國中', lat: 25.0396, lng: 121.5835, address: '臺北市信義區福德街221巷15號'},
+            {name: '市立信義國中', type: '國中', lat: 25.0271, lng: 121.5684, address: '臺北市信義區松仁路158巷1號'},
+            {name: '市立仁愛國中', type: '國中', lat: 25.0375, lng: 121.5501, address: '臺北市大安區仁愛路4段130號'},
+            {name: '市立大安國中', type: '國中', lat: 25.0277, lng: 121.5458, address: '臺北市大安區大安路二段63號'},
+            {name: '市立金華國中', type: '國中', lat: 25.0315, lng: 121.5350, address: '臺北市大安區新生南路二段32號'},
+            {name: '市立懷生國中', type: '國中', lat: 25.0416, lng: 121.5413, address: '臺北市大安區忠孝東路三段248巷30號'},
+            {name: '本市民族實中', type: '國中', lat: 25.0135, lng: 121.5372, address: '臺北市大安區羅斯福路4段113巷13號'},
+            {name: '市立龍門國中', type: '國中', lat: 25.0232, lng: 121.5391, address: '臺北市大安區建國南路2段269號'},
+            {name: '市立長安國中', type: '國中', lat: 25.0494, lng: 121.5332, address: '臺北市中山區松江路70巷11號'},
+            {name: '市立北安國中', type: '國中', lat: 25.0792, lng: 121.5484, address: '臺北市中山區明水路325號'},
+            {name: '市立新興國中', type: '國中', lat: 25.0628, lng: 121.5262, address: '臺北市中山區林森北路511號'},
+            {name: '市立五常國中', type: '國中', lat: 25.0645, lng: 121.5445, address: '臺北市中山區復興北路430巷1號'},
+            {name: '本市濱江實中', type: '國中', lat: 25.0805, lng: 121.5583, address: '臺北市中山區樂群二路262號'},
+            {name: '市立螢橋國中', type: '國中', lat: 25.0231, lng: 121.5173, address: '臺北市中正區汀州路3段4號'},
+            {name: '市立古亭國中', type: '國中', lat: 25.0255, lng: 121.5055, address: '臺北市中正區中華路2段465號'},
+            {name: '市立南門國中', type: '國中', lat: 25.0344, lng: 121.5097, address: '臺北市中正區廣州街6號'},
+            {name: '市立弘道國中', type: '國中', lat: 25.0402, lng: 121.5165, address: '臺北市中正區公園路21號'},
+            {name: '市立中正國中', type: '國中', lat: 25.0334, lng: 121.5218, address: '臺北市中正區愛國東路158號'},
+            {name: '市立建成國中', type: '國中', lat: 25.0493, lng: 121.5187, address: '臺北市大同區長安西路37-1號'},
+            {name: '市立忠孝國中', type: '國中', lat: 25.0485, lng: 121.5106, address: '臺北市大同區西寧北路32號'},
+            {name: '市立民權國中', type: '國中', lat: 25.0643, lng: 121.5134, address: '臺北市大同區重慶北路3段1號'},
+            {name: '市立蘭州國中', type: '國中', lat: 25.0694, lng: 121.5168, address: '臺北市大同區大龍街187巷1號'},
+            {name: '市立重慶國中', type: '國中', lat: 25.0745, lng: 121.5138, address: '臺北市大同區敦煌路19號'},
+            {name: '市立萬華國中', type: '國中', lat: 25.0315, lng: 121.4988, address: '臺北市萬華區西藏路201號'},
+            {name: '市立雙園國中', type: '國中', lat: 25.0242, lng: 121.4912, address: '臺北市萬華區興義街2號'},
+            {name: '市立龍山國中', type: '國中', lat: 25.0347, lng: 121.5034, address: '臺北市萬華區南寧路46號'},
+            {name: '市立木柵國中', type: '國中', lat: 24.9897, lng: 121.5667, address: '臺北市文山區木柵路3段102巷12號'},
+            {name: '市立實踐國中', type: '國中', lat: 24.9788, lng: 121.5544, address: '臺北市文山區辛亥路七段67號'},
+            {name: '市立北政國中', type: '國中', lat: 24.9859, lng: 121.5835, address: '臺北市文山區指南路3段2巷14號'},
+            {name: '市立景美國中', type: '國中', lat: 24.9936, lng: 121.5430, address: '臺北市文山區景中街27號'},
+            {name: '市立興福國中', type: '國中', lat: 24.9982, lng: 121.5516, address: '臺北市文山區福興路80號'},
+            {name: '市立景興國中', type: '國中', lat: 24.9912, lng: 121.5471, address: '臺北市文山區景興路46巷2號'},
+            {name: '市立誠正國中', type: '國中', lat: 25.0538, lng: 121.6094, address: '臺北市南港區富康街1巷24號'},
+            {name: '市立成德國中', type: '國中', lat: 25.0469, lng: 121.5855, address: '臺北市南港區東新街108巷23號'},
+            {name: '市立內湖國中', type: '國中', lat: 25.0768, lng: 121.5768, address: '臺北市內湖區陽光街1號'},
+            {name: '市立麗山國中', type: '國中', lat: 25.0837, lng: 121.5756, address: '臺北市內湖區內湖路1段629巷42號'},
+            {name: '市立三民國中', type: '國中', lat: 25.0664, lng: 121.5901, address: '臺北市內湖區民權東路6段45號'},
+            {name: '本市西湖實中', type: '國中', lat: 25.0858, lng: 121.5662, address: '臺北市內湖區環山路1段27號'},
+            {name: '市立東湖國中', type: '國中', lat: 25.0741, lng: 121.6186, address: '臺北市內湖區康樂街131號'},
+            {name: '市立明湖國中', type: '國中', lat: 25.0694, lng: 121.6117, address: '臺北市內湖區康寧路3段60號'},
+            {name: '市立士林國中', type: '國中', lat: 25.0934, lng: 121.5204, address: '臺北市士林區中正路345號'},
+            {name: '市立蘭雅國中', type: '國中', lat: 25.1119, lng: 121.5332, address: '臺北市士林區忠誠路2段51號'},
+            {name: '市立至善國中', type: '國中', lat: 25.1018, lng: 121.5492, address: '臺北市士林區至善路2段360號'},
+            {name: '市立格致國中', type: '國中', lat: 25.1328, lng: 121.5614, address: '臺北市士林區仰德大道4段75號'},
+            {name: '市立福安國中', type: '國中', lat: 25.1152, lng: 121.4812, address: '臺北市士林區延平北路7段250號'},
+            {name: '市立天母國中', type: '國中', lat: 25.1187, lng: 121.5376, address: '臺北市士林區天母東路120號'},
+            {name: '市立北投國中', type: '國中', lat: 25.1378, lng: 121.5042, address: '臺北市北投區溫泉路62號'},
+            {name: '市立新民國中', type: '國中', lat: 25.1397, lng: 121.5074, address: '臺北市北投區新民路10號'},
+            {name: '市立明德國中', type: '國中', lat: 25.1102, lng: 121.5186, address: '臺北市北投區明德路50號'},
+            {name: '市立桃源國中', type: '國中', lat: 25.1287, lng: 121.4883, address: '臺北市北投區中央北路4段48號'},
+            {name: '市立石牌國中', type: '國中', lat: 25.1147, lng: 121.5135, address: '臺北市北投區石牌路1段139號'},
+            {name: '市立關渡國中', type: '國中', lat: 25.1251, lng: 121.4674, address: '臺北市北投區知行路212號'},
+            {name: '私立立人國際國中小', type: '國中', lat: 25.0312, lng: 121.5516, address: '臺北市大安區安和路2段99號'},
+            {name: '市立西松高中', type: '高中職', lat: 25.0538, lng: 121.5658, address: '臺北市松山區健康路325巷7號'},
+            {name: '市立中崙高中', type: '高中職', lat: 25.0487, lng: 121.5593, address: '臺北市松山區八德路4段101號'},
+            {name: '市立松山高中', type: '高中職', lat: 25.0425, lng: 121.5633, address: '臺北市信義區基隆路1段156號'},
+            {name: '市立永春高中', type: '高中職', lat: 25.0315, lng: 121.5833, address: '臺北市信義區松山路654號'},
+            {name: '國立師大附中', type: '高中職', lat: 25.0365, lng: 121.5401, address: '臺北市大安區信義路3段143號'},
+            {name: '市立和平高中', type: '高中職', lat: 25.0205, lng: 121.5471, address: '臺北市大安區臥龍街100號'},
+            {name: '本市芳和實中', type: '高中職', lat: 25.0185, lng: 121.5484, address: '臺北市大安區臥龍街170號'},
+            {name: '市立中山女中', type: '高中職', lat: 25.0476, lng: 121.5404, address: '臺北市中山區長安東路2段141號'},
+            {name: '市立大同高中', type: '高中職', lat: 25.0569, lng: 121.5342, address: '臺北市中山區長春路167號'},
+            {name: '市立大直高中', type: '高中職', lat: 25.0801, lng: 121.5365, address: '臺北市中山區北安路420號'},
+            {name: '市立建國高中', type: '高中職', lat: 25.0316, lng: 121.5126, address: '臺北市中正區南海路56號'},
+            {name: '市立成功高中', type: '高中職', lat: 25.0428, lng: 121.5244, address: '臺北市中正區濟南路1段71號'},
+            {name: '市立北一女中', type: '高中職', lat: 25.0392, lng: 121.5134, address: '臺北市中正區重慶南路1段165號'},
+            {name: '市立數位實中', type: '高中職', lat: 25.0402, lng: 121.5165, address: '臺北市中正區公園路21號'},
+            {name: '市立明倫高中', type: '高中職', lat: 25.0754, lng: 121.5191, address: '臺北市大同區承德路3段336號'},
+            {name: '市立成淵高中', type: '高中職', lat: 25.0608, lng: 121.5197, address: '臺北市大同區承德路2段235號'},
+            {name: '市立華江高中', type: '高中職', lat: 25.0312, lng: 121.4965, address: '臺北市萬華區西藏路213號'},
+            {name: '市立大理高中', type: '高中職', lat: 25.0264, lng: 121.4886, address: '臺北市萬華區長順街2號'},
+            {name: '市立景美女中', type: '高中職', lat: 24.9818, lng: 121.5542, address: '臺北市文山區木新路3段312號'},
+            {name: '市立萬芳高中', type: '高中職', lat: 24.9984, lng: 121.5564, address: '臺北市文山區興隆路3段115巷1號'},
+            {name: '國立政大附中', type: '高中職', lat: 24.9819, lng: 121.5947, address: '臺北市文山區政大一街353號'},
+            {name: '市立南港高中', type: '高中職', lat: 25.0519, lng: 121.5901, address: '臺北市南港區向陽路21號'},
+            {name: '市立育成高中', type: '高中職', lat: 25.0575, lng: 121.6115, address: '臺北市南港區重陽路366號'},
+            {name: '市立內湖高中', type: '高中職', lat: 25.0776, lng: 121.5839, address: '臺北市內湖區文德路218號'},
+            {name: '市立麗山高中', type: '高中職', lat: 25.0874, lng: 121.5779, address: '臺北市內湖區環山路2段100號'},
+            {name: '市立南湖高中', type: '高中職', lat: 25.0683, lng: 121.6133, address: '臺北市內湖區康寧路3段220號'},
+            {name: '市立陽明高中', type: '高中職', lat: 25.0931, lng: 121.5126, address: '臺北市士林區中正路510號'},
+            {name: '市立百齡高中', type: '高中職', lat: 25.0864, lng: 121.5204, address: '臺北市士林區承德路4段177號'},
+            {name: '市立復興高中', type: '高中職', lat: 25.1417, lng: 121.5002, address: '臺北市北投區復興四路70號'},
+            {name: '市立中正高中', type: '高中職', lat: 25.1068, lng: 121.5117, address: '臺北市北投區文林北路77號'},
+            {name: '市立松山家商', type: '高中職', lat: 25.0311, lng: 121.5838, address: '臺北市信義區松山路655號'},
+            {name: '市立松山工農', type: '高中職', lat: 25.0410, lng: 121.5694, address: '臺北市信義區忠孝東路5段236巷15號'},
+            {name: '市立大安高工', type: '高中職', lat: 25.0298, lng: 121.5435, address: '臺北市大安區復興南路2段52號'},
+            {name: '市立木柵高工', type: '高中職', lat: 24.9972, lng: 121.5746, address: '臺北市文山區木柵路4段77號'},
+            {name: '市立南港高工', type: '高中職', lat: 25.0560, lng: 121.6067, address: '臺北市南港區興中路29號'},
+            {name: '市立內湖高工', type: '高中職', lat: 25.0811, lng: 121.5721, address: '臺北市內湖區內湖路1段520號'},
+            {name: '市立士林高商', type: '高中職', lat: 25.0926, lng: 121.5168, address: '臺北市士林區士商路150號'},
+            {name: '私立協和祐德高中', type: '高中職', lat: 25.0435, lng: 121.5831, address: '臺北市信義區忠孝東路5段790巷27號'},
+            {name: '私立延平高中', type: '高中職', lat: 25.0381, lng: 121.5375, address: '臺北市大安區建國南路1段275號'},
+            {name: '私立金甌女中', type: '高中職', lat: 25.0336, lng: 121.5244, address: '臺北市大安區杭州南路2段1號'},
+            {name: '私立復興實驗高中', type: '高中職', lat: 25.0374, lng: 121.5487, address: '臺北市大安區敦化南路1段262號'},
+            {name: '私立大同高中', type: '高中職', lat: 25.0645, lng: 121.5233, address: '臺北市中山區中山北路3段40號'},
+            {name: '私立強恕高中', type: '高中職', lat: 25.0256, lng: 121.5197, address: '臺北市中正區汀州路2段143號'},
+            {name: '私立靜修高中', type: '高中職', lat: 25.0569, lng: 121.5144, address: '臺北市大同區寧夏路59號'},
+            {name: '私立東山高中', type: '高中職', lat: 24.9669, lng: 121.5644, address: '臺北市文山區老泉街26巷3號'},
+            {name: '私立滬江高中', type: '高中職', lat: 24.9922, lng: 121.5385, address: '臺北市文山區羅斯福路6段336號'},
+            {name: '私立大誠高中', type: '高中職', lat: 24.9856, lng: 121.5731, address: '臺北市文山區秀明路2段175號'},
+            {name: '私立再興中學', type: '高中職', lat: 24.9852, lng: 121.5542, address: '臺北市文山區興隆路4段2號'},
+            {name: '私立景文高中', type: '高中職', lat: 24.9868, lng: 121.5694, address: '臺北市文山區保儀路127號'},
+            {name: '私立靜心高中', type: '高中職', lat: 24.9976, lng: 121.5414, address: '臺北市文山區興隆路2段46號'},
+            {name: '私立達人高中', type: '高中職', lat: 25.0801, lng: 121.5895, address: '臺北市內湖區內湖路2段314號'},
+            {name: '私立泰北高中', type: '高中職', lat: 25.0978, lng: 121.5304, address: '臺北市士林區福林路240號'},
+            {name: '私立衛理女中', type: '高中職', lat: 25.1018, lng: 121.5471, address: '臺北市士林區至善路2段321號'},
+            {name: '私立華興高中', type: '高中職', lat: 25.1039, lng: 121.5342, address: '臺北市士林區仰德大道1段101號'},
+            {name: '私立薇閣高中', type: '高中職', lat: 25.1417, lng: 121.4984, address: '臺北市北投區珠海路50號'},
+            {name: '私立幼華高中', type: '高中職', lat: 25.1311, lng: 121.4985, address: '臺北市北投區北投路二段55號'},
+            {name: '私立奎山實驗高中', type: '高中職', lat: 25.1147, lng: 121.5173, address: '臺北市北投區明德路200號'},
+            {name: '私立育達高中', type: '高中職', lat: 25.0508, lng: 121.5526, address: '臺北市松山區寧安街12號'},
+            {name: '私立東方工商', type: '高中職', lat: 25.0331, lng: 121.5516, address: '臺北市大安區信義路4段186巷8號'},
+            {name: '私立喬治工商', type: '高中職', lat: 25.0251, lng: 121.5552, address: '臺北市信義區基隆路2段155號'},
+            {name: '私立開平餐飲', type: '高中職', lat: 25.0271, lng: 121.5428, address: '臺北市大安區復興南路2段148巷24號'},
+            {name: '私立稻江護家', type: '高中職', lat: 25.0664, lng: 121.5262, address: '臺北市中山區新生北路3段55號'},
+            {name: '私立開南高中', type: '高中職', lat: 25.0428, lng: 121.5226, address: '臺北市中正區濟南路一段6號'},
+            {name: '私立稻江高商', type: '高中職', lat: 25.0628, lng: 121.5117, address: '臺北市大同區民權西路225巷24號'},
+            {name: '私立華岡藝校', type: '高中職', lat: 25.1368, lng: 121.5458, address: '臺北市士林區建業路73巷8號'},
+            {name: '私立惇敘工商', type: '高中職', lat: 25.1435, lng: 121.5204, address: '臺北市北投區泉源路221號'},
+            {name: '私立南華高中', type: '高中職', lat: 25.0197, lng: 121.5332, address: '臺北市中正區汀州路3段58號'},
+            {name: '私立志仁高中', type: '高中職', lat: 25.0528, lng: 121.5187, address: '臺北市大同區南京西路64巷17號'}
+        ];
+
+        // 3. 初始化地圖
         const map = L.map('map', {
             center: [23.85, 121.0],
             zoom: 8,
             minZoom: 6,
-            maxZoom: 16,
-            zoomControl: true,
-            renderer: L.canvas() 
+            maxZoom: 15, // 提高最大 Zoom 級數，方便觀察密集的學校
+            zoomControl: true
         });
 
         map.zoomControl.setPosition('topleft');
 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(map);
 
-        // 2. PM2.5 顏色分級
-        function getPm25Color(v) {
-            if (v === undefined || v === null || v < 0) return '#cbd5e1';
-            return v > 250.4 ? '#7f1d1d' : 
-                   v > 150.4 ? '#a855f7' : 
-                   v > 54.4  ? '#ef4444' : 
-                   v > 35.4  ? '#f97316' : 
-                   v > 15.4  ? '#eab308' : 
-                               '#10b981';  
+        // 4. 縣市名稱智慧對接
+        function matchCounty(geojsonName, dataName) {
+            const geo = geojsonName.replace(/台/g, '臺');
+            const data = dataName.replace(/台/g, '臺');
+            if (geo === data) return true;
+            if (data === "桃園市" && geo === "桃園縣") return true;
+            if (data === "臺中市" && geo === "臺中縣") return true;
+            if (data === "臺南市" && geo === "臺南縣") return true;
+            if (data === "高雄市" && geo === "高雄縣") return true;
+            return false;
         }
 
-        // 3. API 串接設定 (取得正確的 .json.gz 壓縮檔)
-        const airboxUrl = 'https://corsproxy.io/?https://pm25.lass-net.org/data/last-all-airbox.json.gz';
-        const airboxBackupUrl = 'https://api.allorigins.win/raw?url=https://pm25.lass-net.org/data/last-all-airbox.json.gz';
-        const countyUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
-
-        // 4. 下載與「本地即時解壓縮」的核心代碼
-        async function fetchAndDecompressGzip(url) {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error("HTTP 狀態異常: " + response.status);
-            
-            // 使用現代瀏覽器原生支援的 DecompressionStream
-            if (typeof DecompressionStream !== 'undefined') {
-                const ds = new DecompressionStream('gzip');
-                const decompressedStream = response.body.pipeThrough(ds);
-                const text = await new Response(decompressedStream).text();
-                return JSON.parse(text);
-            } else {
-                throw new Error("您的瀏覽器過於老舊，不支援原生 GZIP 解壓縮技術。請更新您的瀏覽器。");
-            }
+        function findDataForFeature(feature) {
+            const geojsonName = feature.properties.COUNTYNAME || feature.properties.COUNTY || feature.properties.name || "";
+            return airData.find(d => matchCounty(geojsonName, d.COUNTY));
         }
 
-        // 5. 下載縣市界線 JSON (無壓縮)
-        function fetchJson(url) {
+        // 5. 各指標顏色分級定義
+        function getTspColor(v) {
+            if (v === 0) return '#cbd5e1';
+            return v > 45 ? '#a855f7' :
+                   v > 40 ? '#ef4444' :
+                   v > 35 ? '#f97316' :
+                   v > 30 ? '#eab308' :
+                            '#10b981';
+        }
+
+        function getOzoneColor(v) {
+            return v > 58 ? '#ef4444' :
+                   v > 55 ? '#f97316' :
+                   v > 50 ? '#eab308' :
+                   v > 45 ? '#10b981' :
+                            '#3b82f6';
+        }
+
+        function getSo2Color(v) {
+            return v > 1.6 ? '#a855f7' :
+                   v > 1.3 ? '#ef4444' :
+                   v > 1.1 ? '#f97316' :
+                   v > 0.9 ? '#eab308' :
+                             '#10b981';
+        }
+
+        function getAqiColor(v) {
+            return v > 12.0 ? '#a855f7' :
+                   v > 8.0  ? '#ef4444' :
+                   v > 4.0  ? '#f97316' :
+                   v > 2.0  ? '#eab308' :
+                              '#10b981';
+        }
+
+        // 6. 建立圖層與追蹤設定 (預設開啟 TSP 與 學校分佈)
+        let tspLayer, ozoneLayer, so2Layer, aqiLayer;
+        const schoolLayer = L.layerGroup();
+        const activeOverlays = new Set(["空氣中總懸浮微粒 (TSP)", "學校分佈 (臺北市)"]); 
+
+        // 7. 生成學校圖層點位資料
+        schoolData.forEach(school => {
+            // 國中：藍色，高中職：粉紅
+            const fillColor = school.type === '國中' ? '#0284c7' : '#db2777';
+            const marker = L.circleMarker([school.lat, school.lng], {
+                radius: 6,
+                fillColor: fillColor,
+                color: '#ffffff',
+                weight: 1.5,
+                opacity: 1,
+                fillOpacity: 0.85
+            });
+
+            // 建立學校資訊 Tooltip
+            const tooltipHtml = `
+                <div class="custom-tooltip-content">
+                    <div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1.5 text-xs">${school.name}</div>
+                    <div class="space-y-0.5 text-[10px] text-slate-500">
+                        <div><span class="font-medium text-slate-700">• 類型：</span>${school.type}</div>
+                        <div><span class="font-medium text-slate-700">• 地址：</span>${school.address}</div>
+                    </div>
+                </div>
+            `;
+            marker.bindTooltip(tooltipHtml, { sticky: true, className: 'custom-tooltip' });
+
+            // 點擊事件：直接縮放至該校
+            marker.on('click', function(e) {
+                map.setView(e.latlng, 14);
+            });
+
+            schoolLayer.addLayer(marker);
+        });
+
+        // 8. 載入行政區 GeoJSON 並渲染
+        const primaryGeoJsonUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
+        const fallbackGeoJsonUrl = 'https://raw.githubusercontent.com/ronnywang/twgeojson/master/twcounty2010.2.json';
+
+        function loadGeoJson(url) {
             return fetch(url).then(res => {
-                if (!res.ok) throw new Error("載入失敗：" + res.status);
+                if (!res.ok) throw new Error("HTTP 狀態異常 " + res.status);
                 return res.json();
             });
         }
 
-        // 6. 同步載入圖資與解壓空氣盒子數據
-        Promise.all([
-            fetchJson(countyUrl),
-            fetchAndDecompressGzip(airboxUrl).catch(() => fetchAndDecompressGzip(airboxBackupUrl))
-        ]).then(([countyGeoJson, airboxData]) => {
-            
-            // 載入成功，淡出並關閉遮罩
-            const overlay = document.getElementById('loading-overlay');
-            if (overlay) {
+        loadGeoJson(primaryGeoJsonUrl)
+            .catch(() => loadGeoJson(fallbackGeoJsonUrl))
+            .then(geojson => {
+                
+                const overlay = document.getElementById('loading-overlay');
                 overlay.style.opacity = '0';
                 setTimeout(() => overlay.remove(), 300);
-            }
 
-            // A. 渲染行政區邊界圖層（支援點擊放大縣市功能）
-            L.geoJSON(countyGeoJson, {
-                style: {
-                    fillColor: '#334155',
-                    weight: 1.2,
-                    opacity: 0.9,
-                    color: '#94a3b8',
-                    fillOpacity: 0.03  
-                },
-                onEachFeature: function(feature, layer) {
-                    const countyName = feature.properties.COUNTYNAME || feature.properties.COUNTY || "";
-                    
-                    layer.on({
-                        click: function(e) {
-                            // 點擊縣市：自動定位並放大
-                            map.fitBounds(e.target.getBounds());
+                function createLayer(metric) {
+                    return L.geoJSON(geojson, {
+                        style: function(feature) {
+                            const data = findDataForFeature(feature);
+                            let fillColor = '#cbd5e1';
+                            if (data) {
+                                if (metric === 'tsp') fillColor = getTspColor(data.COLUMN1);
+                                if (metric === 'ozone') fillColor = getOzoneColor(data.COLUMN2);
+                                if (metric === 'so2') fillColor = getSo2Color(data.COLUMN3);
+                                if (metric === 'aqi') fillColor = getAqiColor(data.COLUMN4);
+                            }
+                            return {
+                                fillColor: fillColor,
+                                weight: 1.5,
+                                opacity: 0.9,
+                                color: '#ffffff',
+                                fillOpacity: 0.65
+                            };
                         },
-                        mouseover: function(e) {
-                            e.target.setStyle({
-                                weight: 2.2,
-                                color: '#475569',
-                                fillOpacity: 0.08
+                        onEachFeature: function(feature, layer) {
+                            const data = findDataForFeature(feature);
+                            
+                            layer.on({
+                                mouseover: function(e) {
+                                    const layerObj = e.target;
+                                    layerObj.setStyle({
+                                        weight: 3,
+                                        color: '#334155',
+                                        fillOpacity: 0.85
+                                    });
+                                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                                        layerObj.bringToFront();
+                                    }
+                                    // 確保學校點層級永遠保持在多邊形圖層上方
+                                    schoolLayer.eachLayer(m => m.bringToFront());
+                                },
+                                mouseout: function(e) {
+                                    const layerObj = e.target;
+                                    let origColor = '#cbd5e1';
+                                    if (data) {
+                                        if (metric === 'tsp') origColor = getTspColor(data.COLUMN1);
+                                        if (metric === 'ozone') origColor = getOzoneColor(data.COLUMN2);
+                                        if (metric === 'so2') origColor = getSo2Color(data.COLUMN3);
+                                        if (metric === 'aqi') origColor = getAqiColor(data.COLUMN4);
+                                    }
+                                    layerObj.setStyle({
+                                        fillColor: origColor,
+                                        weight: 1.5,
+                                        color: '#ffffff',
+                                        fillOpacity: 0.65
+                                    });
+                                },
+                                click: function(e) {
+                                    map.fitBounds(e.target.getBounds());
+                                }
                             });
-                        },
-                        mouseout: function(e) {
-                            e.target.setStyle({
-                                weight: 1.2,
-                                color: '#94a3b8',
-                                fillOpacity: 0.03
-                            });
+
+                            if (data) {
+                                let labelHtml = `
+                                    <div class="custom-tooltip-content">
+                                        <div class="font-bold text-slate-800 border-b border-slate-100 pb-1.5 mb-2 text-sm">${data.COUNTY}</div>
+                                        <div class="space-y-1 text-xs">
+                                            <div class="${metric === 'tsp' ? 'font-bold text-slate-800' : 'text-slate-500'} flex items-center justify-between gap-4">
+                                                <span>• 總懸浮微粒 (TSP)：</span>
+                                                <span class="font-semibold">${data.COLUMN1 === 0 ? '無監測站' : data.COLUMN1 + ' µg/m³'}</span>
+                                            </div>
+                                            <div class="${metric === 'ozone' ? 'font-bold text-slate-800' : 'text-slate-500'} flex items-center justify-between gap-4">
+                                                <span>• 臭氧濃度 (Ozone)：</span>
+                                                <span class="font-semibold">${data.COLUMN2} ppb</span>
+                                            </div>
+                                            <div class="${metric === 'so2' ? 'font-bold text-slate-800' : 'text-slate-500'} flex items-center justify-between gap-4">
+                                                <span>• 二氧化硫 (SO₂)：</span>
+                                                <span class="font-semibold">${data.COLUMN3} ppb</span>
+                                            </div>
+                                            <div class="${metric === 'aqi' ? 'font-bold text-slate-800' : 'text-slate-500'} flex items-center justify-between gap-4">
+                                                <span>• AQI > 100 日數比：</span>
+                                                <span class="font-semibold">${data.COLUMN4}%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                                layer.bindTooltip(labelHtml, { sticky: true, className: 'custom-tooltip' });
+                            }
                         }
                     });
-
-                    layer.bindTooltip(`<div class="font-bold text-slate-700">${countyName}</div>`, { 
-                        sticky: true, 
-                        className: 'custom-tooltip' 
-                    });
                 }
-            }).addTo(map);
 
-            // B. 渲染空氣盒子即時點位 (解壓後的 JSON 數據)
-            if (airboxData && airboxData.feeds) {
-                airboxData.feeds.forEach(feed => {
-                    const lat = parseFloat(feed.gps_lat);
-                    const lon = parseFloat(feed.gps_lon);
+                // 初始化空氣品質圖層
+                tspLayer = createLayer('tsp');
+                ozoneLayer = createLayer('ozone');
+                so2Layer = createLayer('so2');
+                aqiLayer = createLayer('aqi');
 
-                    // 經緯度篩選確保在台灣範圍
-                    if (!isNaN(lat) && !isNaN(lon) && lat > 21.5 && lat < 26.5 && lon > 118.0 && lon < 122.5) {
-                        const pm25 = feed.s_d0;
-                        const temp = feed.s_t0;
-                        const humi = feed.s_h0;
-                        const siteName = feed.SiteName || "空氣盒子微型感測器";
-                        const updatedTime = feed.timestamp ? new Date(feed.timestamp).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' }) : "無提供更新時間";
+                // 預設啟用 TSP 與 學校 圖層
+                tspLayer.addTo(map);
+                schoolLayer.addTo(map);
 
-                        // 建立輕量化圓點標記
-                        const marker = L.circleMarker([lat, lon], {
-                            radius: 5,
-                            fillColor: getPm25Color(pm25),
-                            color: '#ffffff', 
-                            weight: 1,
-                            opacity: 0.9,
-                            fillOpacity: 0.85
-                        });
+                // 設定圖層切換選單
+                const overlayMaps = {
+                    "空氣中總懸浮微粒 (TSP)": tspLayer,
+                    "空氣中臭氧 (Ozone)": ozoneLayer,
+                    "二氧化硫 (SO₂)": so2Layer,
+                    "AQI > 100 日數比率": aqiLayer,
+                    "學校分佈 (臺北市)": schoolLayer
+                };
 
-                        // 彈出提示資訊視窗
-                        const popupHtml = `
-                            <div class="p-1 min-w-[200px]">
-                                <div class="font-bold text-slate-800 text-sm border-b border-slate-100 pb-1.5 mb-2 flex items-center gap-1">
-                                    <span class="inline-block h-1.5 w-1.5 rounded-full" style="background:${getPm25Color(pm25)}"></span>
-                                    ${siteName}
-                                </div>
-                                <div class="space-y-1.5 text-xs">
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500">PM2.5 濃度：</span>
-                                        <span class="font-extrabold text-slate-800">${pm25} µg/m³</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500">即時溫度：</span>
-                                        <span class="font-semibold text-slate-700">${temp} °C</span>
-                                    </div>
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-slate-500">即時濕度：</span>
-                                        <span class="font-semibold text-slate-700">${humi} %</span>
-                                    </div>
-                                    <div class="border-t border-slate-100 pt-1.5 mt-2 text-[10px] text-slate-400 flex flex-col">
-                                        <span>更新時間：</span>
-                                        <span class="font-mono mt-0.5">${updatedTime}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
+                L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
 
-                        marker.bindPopup(popupHtml);
-                        marker.addTo(map);
-                    }
+                // 監聽圖層切換事件更新圖例
+                map.on('overlayadd', function(e) {
+                    activeOverlays.add(e.name);
+                    updateDynamicLegend();
                 });
+
+                map.on('overlayremove', function(e) {
+                    activeOverlays.delete(e.name);
+                    updateDynamicLegend();
+                });
+
+                // 初始化動態圖例說明
+                updateDynamicLegend();
+            })
+            .catch(err => {
+                console.error("地圖數據載入失敗:", err);
+                const container = document.getElementById('loading-overlay');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm text-center border border-slate-200">
+                            <p class="text-red-500 font-bold text-lg mb-2">⚠️ 圖資載入超時或失敗</p>
+                            <p class="text-slate-600 text-sm mb-4">無法取得地圖邊界線。這通常是因為暫時連線至 CDN 網路不穩定。</p>
+                            <button onclick="window.location.reload()" class="bg-slate-800 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-slate-700 transition">重新整理網頁</button>
+                        </div>
+                    `;
+                }
+            });
+
+        // 9. 動態圖例管理器
+        function updateDynamicLegend() {
+            const container = document.getElementById('legend-content');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (activeOverlays.size === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-400 italic">無選取圖層</div>';
+                return;
             }
 
-        }).catch(err => {
-            console.error("解壓縮與載入流程失敗：", err);
-            
-            // 網路或解壓出錯時顯示修復按鈕
-            const container = document.getElementById('loading-overlay');
-            if (container) {
-                container.innerHTML = `
-                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm text-center border border-slate-200">
-                        <p class="text-red-500 font-bold text-lg mb-2">⚠️ 即時數據獲取失敗</p>
-                        <p class="text-slate-600 text-sm mb-4">解壓縮失敗或外部 API 連線不穩定。這通常是由於 LASS 平台臨時連線中斷所致。</p>
-                        <button onclick="window.location.reload()" class="bg-slate-800 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-slate-700 transition">重新整理網頁</button>
-                    </div>
-                `;
-            }
-        });
-    </script>
-</body>
-</html>
+            activeOverlays.forEach(layerName => {
+                let html = `<div class="border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
+                    <p class="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${layerName}
+                    </p>
+                    <div class="space-y-1 pl-2.5">`;
+
+                if (layerName === "空氣中總懸浮微粒 (TSP)") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#a855f7"></span>&gt; 45 µg/m³ (高)</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#ef4444"></span>40 - 45 µg/m³</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#f97316"></span>35 - 40 µg/m³</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#eab308"></span>30 - 35 µg/m³</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#10b981"></span>&lt; 30 µg/m³ (低)</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#cbd5e1"></span>無一般人工監測站</div>
+                    `;
+                } else if (layerName === "空氣中臭氧 (Ozone)") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#ef4444"></span>&gt; 58 ppb (高)</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#f97316"></span>55 - 58 ppb</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#eab308"></span>50 - 55 ppb</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#10b981"></span>45 - 50 ppb</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#3b82f6"></span>&lt; 45 ppb (低)</div>
+                    `;
+                } else if (layerName === "二氧化硫 (SO₂)") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#a855f7"></span>&gt; 1.6 ppb (高)</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#ef4444"></span>1.3 - 1.6 ppb</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#f97316"></span>1.1 - 1.3 ppb</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#eab308"></span>0.9 - 1.1 ppb</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#10b981"></span>&lt; 0.9 ppb (低)</div>
+                    `;
+                } else if (layerName === "AQI > 100 日數比率") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#a855f7"></span>&gt; 12.0% (高)</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#ef4444"></span>8.0% - 12.0%</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#f97316"></span>4.0% - 8.0%</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#eab308"></span>2.0% - 4.0%</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3 h-2 rounded-sm mr-2" style="background:#10b981"></span>&lt; 2.0% (良好)</div>
+                    `;
+                } else if (layerName === "學校分佈 (臺北市)") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-2.5 h-2.5 rounded-full mr-2.5 inline-block" style="background:#0284c7; border: 1px solid #fff"></span>國中</div>
+                        <div class="
