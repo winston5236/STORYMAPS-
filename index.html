@@ -449,3 +449,199 @@
                             mouseover: function(e) {
                                 e.target.setStyle({
                                     weight: 2.5,
+                                    color: '#334155',
+                                    fillOpacity: 0.85
+                                });
+                                juniorHighLayer.eachLayer(m => m.bringToFront());
+                                seniorHighLayer.eachLayer(m => m.bringToFront());
+                            },
+                            mouseout: function(e) {
+                                const matchedStyle = vacantData.find(d => matchCounty(countyName, d.COUNTY));
+                                const rateVal = matchedStyle ? matchedStyle.rate : 0;
+                                e.target.setStyle({
+                                    fillColor: getVacantColor(rateVal),
+                                    weight: 1.5,
+                                    color: '#ffffff',
+                                    fillOpacity: 0.65
+                                });
+                            },
+                            click: function(e) {
+                                handleFeatureClick(feature, layer, e);
+                            }
+                        });
+                    }
+                });
+
+                // 設定圖層切換控制 (移除即時車流核取框，全面交由點擊觸發)
+                const overlayMaps = {
+                    "國中": juniorHighLayer,
+                    "高中職": seniorHighLayer,
+                    "行政區空屋率": vacantLayer,
+                    "行政區邊界 (灰色)": boundaryLayer
+                };
+
+                L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
+
+                // 監聽圖層切換事件更新圖例
+                map.on('overlayadd', function(e) {
+                    activeOverlays.add(e.name);
+                    updateDynamicLegend();
+                });
+
+                map.on('overlayremove', function(e) {
+                    activeOverlays.delete(e.name);
+                    updateDynamicLegend();
+                });
+
+                // 預設主動「點選」並聚焦臺北市車流
+                const taipeiFeature = geojson.features.find(f => {
+                    const name = f.properties.COUNTYNAME || f.properties.COUNTY || f.properties.name || "";
+                    return name.replace(/台/g, '臺') === "臺北市";
+                });
+
+                if (taipeiFeature) {
+                    clickedFeature = taipeiFeature;
+                    trafficLayer.addTo(map);
+                    activeOverlays.add("即時車流");
+                    setTimeout(() => {
+                        updateTrafficClip();
+                        updateDynamicLegend();
+                    }, 50);
+                } else {
+                    updateDynamicLegend();
+                }
+            })
+            .catch(err => {
+                console.error("地圖數據載入失敗:", err);
+                const container = document.getElementById('loading-overlay');
+                if (container) {
+                    container.innerHTML = `
+                        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm text-center border border-slate-200">
+                            <p class="text-red-500 font-bold text-lg mb-2">⚠️ 圖資載入超時或失敗</p>
+                            <p class="text-slate-600 text-sm mb-4">無法載入邊界地圖。這通常是因為暫時連線至外部 CDN 網路不穩定。</p>
+                            <button onclick="window.location.reload()" class="bg-slate-800 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-slate-700 transition">重新整理網頁</button>
+                        </div>
+                    `;
+                }
+            });
+
+        // 8. 點擊地圖空白處，可重設 (隱藏) 即時車流
+        map.on('click', function() {
+            clickedFeature = null;
+            if (map.hasLayer(trafficLayer)) {
+                map.removeLayer(trafficLayer);
+            }
+            updateTrafficClip();
+            activeOverlays.delete("即時車流");
+            updateDynamicLegend();
+        });
+
+        // 9. 計算與更新 SVG 裁剪路徑
+        function updateTrafficClip() {
+            const clipPathEl = document.getElementById('traffic-clip-path');
+            if (!clipPathEl) return;
+            
+            if (clickedFeature && map.hasLayer(trafficLayer)) {
+                const pathData = getSvgPathFromFeature(clickedFeature);
+                clipPathEl.setAttribute('d', pathData);
+            } else {
+                clipPathEl.setAttribute('d', ''); // 清空裁剪路徑，等同於全部遮蔽
+            }
+        }
+
+        // 當地圖進行縮放、拖曳移動時，必須同步重新計算轉換像素座標
+        map.on('move zoom viewreset drag', updateTrafficClip);
+
+        // 10. 經緯度座標轉換為網頁像素點函數
+        function getSvgPathFromFeature(feature) {
+            if (!feature || !feature.geometry) return '';
+            const type = feature.geometry.type;
+            const coords = feature.geometry.coordinates;
+            let pathData = '';
+
+            function ringToPath(ring) {
+                let str = '';
+                for (let i = 0; i < ring.length; i++) {
+                    const pt = map.latLngToContainerPoint([ring[i][1], ring[i][0]]);
+                    str += (i === 0 ? 'M' : 'L') + ` ${pt.x} ${pt.y} `;
+                }
+                str += 'Z ';
+                return str;
+            }
+
+            if (type === 'Polygon') {
+                coords.forEach(ring => {
+                    pathData += ringToPath(ring);
+                });
+            } else if (type === 'MultiPolygon') {
+                coords.forEach(polygon => {
+                    polygon.forEach(ring => {
+                        pathData += ringToPath(ring);
+                    });
+                });
+            }
+            return pathData;
+        }
+
+        // 11. 動態圖例管理器
+        function updateDynamicLegend() {
+            const container = document.getElementById('legend-content');
+            if (!container) return;
+            container.innerHTML = '';
+
+            // 過濾掉邊界底圖圖例，以保持面板簡潔
+            const legendShowKeys = Array.from(activeOverlays).filter(k => k !== "行政區邊界 (灰色)");
+
+            if (legendShowKeys.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-400 italic">無選取圖層</div>';
+                return;
+            }
+
+            legendShowKeys.forEach(layerName => {
+                let html = `<div class="border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
+                    <p class="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${layerName}
+                    </p>
+                    <div class="space-y-1.5 pl-2.5">`;
+
+                if (layerName === "國中") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600">
+                            <span class="w-2.5 h-2.5 rounded-full mr-2 inline-block" style="background:${schoolColor}; border: 1px solid #fff"></span>
+                            國中 (共 ${schoolData.filter(s => s.type === '國中').length} 所)
+                        </div>
+                    `;
+                } else if (layerName === "高中職") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600">
+                            <span class="w-2.5 h-2.5 rounded-full mr-2 inline-block" style="background:${schoolColor}; border: 1px solid #fff"></span>
+                            高中職 (共 ${schoolData.filter(s => s.type === '高中職').length} 所)
+                        </div>
+                    `;
+                } else if (layerName === "即時車流") {
+                    const countyName = clickedFeature ? (clickedFeature.properties.COUNTYNAME || clickedFeature.properties.COUNTY || clickedFeature.properties.name || "選取區") : "";
+                    html += `
+                        <p class="text-[9px] text-indigo-600 font-semibold mb-1">📍 裁剪範圍：${countyName}</p>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#10b981"></span>綠色：道路暢通</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#facc15"></span>黃色：車速稍慢</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#f97316"></span>橘色：車流擁擠</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#ef4444"></span>紅色：嚴重堵塞</div>
+                        <div class="text-[9px] text-slate-400 italic mt-1">※ 啟用動態光暈擴散。</div>
+                    `;
+                } else if (layerName === "行政區空屋率") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-2 mr-2 inline-block" style="background:#7f1d1d"></span>&gt; 15.0% (高空屋率)</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-2 mr-2 inline-block" style="background:#b91c1c"></span>13.0% - 15.0%</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-2 mr-2 inline-block" style="background:#ea580c"></span>11.0% - 13.0%</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-2 mr-2 inline-block" style="background:#eab308"></span>9.0% - 11.0%</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-2 mr-2 inline-block" style="background:#16a34a"></span>&lt; 9.0% (低空屋率)</div>
+                    `;
+                }
+
+                html += `</div></div>`;
+                container.innerHTML += html;
+            });
+        }
+    </script>
+</body>
+</html>
