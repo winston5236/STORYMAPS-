@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>臺北市學校分佈地圖</title>
+    <title>臺北市學校分佈與即時車流地圖</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
@@ -33,7 +33,7 @@
     <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center z-[9999] transition-opacity duration-300">
         <div id="loading-content" class="flex flex-col items-center justify-center">
             <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent mb-4"></div>
-            <p class="text-white font-medium text-lg">正在載入行政區邊界與學校分佈...</p>
+            <p class="text-white font-medium text-lg">正在載入行政區邊界與即時車流分佈...</p>
             <p class="text-slate-400 text-xs mt-2">使用極簡版圖資 (89 KB) 加速渲染中</p>
         </div>
     </div>
@@ -41,7 +41,7 @@
     <!-- 左上角懸浮式標題面板 -->
     <div class="absolute top-4 left-16 bg-white/95 backdrop-blur px-5 py-3 rounded-lg shadow-lg z-[1000] border border-slate-200 pointer-events-auto">
         <h1 class="text-lg font-bold text-slate-800 flex items-center gap-1.5">
-            <span>🏫</span> 臺北市國中與高中職學校分佈
+            <span>🚗</span> 臺北市學校分佈與即時車流路況
         </h1>
         <p class="text-[11px] text-slate-500 mt-0.5">滑鼠懸停至點標可檢視學校資訊 | 右上角可個別切換圖層</p>
     </div>
@@ -205,10 +205,19 @@
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(map);
 
-        // 3. 建立學校圖層群組（國中與高中職獨立分開）
+        // 3. 建立即時車流 (Google Traffic) 瓦片圖層，並設定透明度使底圖更清晰
+        const trafficLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=h,traffic&hl=zh-TW&x={x}&y={y}&z={z}', {
+            attribution: '&copy; Google Maps Traffic',
+            maxZoom: 16,
+            opacity: 0.75
+        });
+
+        // 4. 建立學校圖層群組（國中與高中職獨立分開）
         const juniorHighLayer = L.layerGroup();
         const seniorHighLayer = L.layerGroup();
-        const activeOverlays = new Set(["國中", "高中職"]);
+        
+        // 預設開啟「國中」、「高中職」與「即時車流」
+        const activeOverlays = new Set(["國中", "高中職", "即時車流"]);
 
         // 生成學校標記
         schoolData.forEach(school => {
@@ -244,11 +253,12 @@
             }
         });
 
-        // 預設將國中與高中職圖層加入地圖
+        // 預設將國中、高中職與即時車流圖層加入地圖
         juniorHighLayer.addTo(map);
         seniorHighLayer.addTo(map);
+        trafficLayer.addTo(map);
 
-        // 4. 載入並渲染行政區 GeoJSON
+        // 5. 載入並渲染行政區 GeoJSON
         const primaryGeoJsonUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
         const fallbackGeoJsonUrl = 'https://raw.githubusercontent.com/ronnywang/twgeojson/master/twcounty2010.2.json';
 
@@ -289,7 +299,7 @@
                                     color: '#94a3b8',
                                     fillOpacity: 0.5
                                 });
-                                // 確保學校標記永遠保持在上層
+                                // 確保學校標記與路況資訊能保持在邊界圖層之上
                                 juniorHighLayer.eachLayer(m => m.bringToFront());
                                 seniorHighLayer.eachLayer(m => m.bringToFront());
                             },
@@ -311,6 +321,7 @@
                 const overlayMaps = {
                     "國中": juniorHighLayer,
                     "高中職": seniorHighLayer,
+                    "即時車流": trafficLayer,
                     "行政區邊界": boundaryLayer
                 };
 
@@ -318,14 +329,14 @@
 
                 // 監聽圖層切換事件更新圖例
                 map.on('overlayadd', function(e) {
-                    if (e.name === "國中" || e.name === "高中職") {
+                    if (e.name === "國中" || e.name === "高中職" || e.name === "即時車流") {
                         activeOverlays.add(e.name);
                         updateDynamicLegend();
                     }
                 });
 
                 map.on('overlayremove', function(e) {
-                    if (e.name === "國中" || e.name === "高中職") {
+                    if (e.name === "國中" || e.name === "高中職" || e.name === "即時車流") {
                         activeOverlays.delete(e.name);
                         updateDynamicLegend();
                     }
@@ -348,7 +359,7 @@
                 }
             });
 
-        // 5. 動態圖例管理器
+        // 6. 動態圖例管理器
         function updateDynamicLegend() {
             const container = document.getElementById('legend-content');
             if (!container) return;
@@ -364,7 +375,7 @@
                     <p class="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
                         <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${layerName}
                     </p>
-                    <div class="space-y-1 pl-2.5">`;
+                    <div class="space-y-1.5 pl-2.5">`;
 
                 if (layerName === "國中") {
                     html += `
@@ -379,6 +390,13 @@
                             <span class="w-2.5 h-2.5 rounded-full mr-2 inline-block" style="background:#db2777; border: 1px solid #fff"></span>
                             高中職 (共 ${schoolData.filter(s => s.type === '高中職').length} 所)
                         </div>
+                    `;
+                } else if (layerName === "即時車流") {
+                    html += `
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#10b981"></span>綠色：道路暢通</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#facc15"></span>黃色：車速稍慢</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#f97316"></span>橘色：車流擁擠</div>
+                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#ef4444"></span>紅色：嚴重堵塞</div>
                     `;
                 }
 
