@@ -79,20 +79,21 @@
     });
     aqiLayer.addTo(map); // 預設顯示
 
-    // --- 圖層 B: 全台村里人口指標 (SHP 預留層) ---
-    const populationLayer = L.geoJson(null, {
-        style: { color: "#2980b9", weight: 1, fillOpacity: 0.4 }
-    });
+   // --- 圖層 B: 全台村里人口指標 ---
+// 將 null 替換為您轉換後的 GeoJSON 物件
+const populationLayer = L.geoJson(您的村里數據JSON, {
+    style: { color: "#2980b9", weight: 1, fillOpacity: 0.4 }
+});
 
-    // --- 圖層 C: 台北市工商家數 (一級發布區預留層) ---
-    const businessLayer = L.geoJson(null, {
-        style: { color: "#27ae60", weight: 1, fillOpacity: 0.5 }
-    });
+// --- 圖層 C: 台北市工商家數 ---
+const businessLayer = L.geoJson(您的工商數據JSON, {
+    style: { color: "#27ae60", weight: 1, fillOpacity: 0.5 }
+});
 
-    // --- 圖層 D: 行政區地理邊界 ---
-    const boundaryLayer = L.geoJson(null, {
-        style: { color: "#7f8c8d", weight: 2, fillOpacity: 0, dashArray: '5, 5' }
-    });
+// --- 圖層 D: 行政區地理邊界 ---
+const boundaryLayer = L.geoJson(您的邊界數據JSON, {
+    style: { color: "#7f8c8d", weight: 2, fillOpacity: 0, dashArray: '5, 5' }
+});
 
     // 3. 核心：圖層切換控制 (Toggle Layers)
     const overlayMaps = {
