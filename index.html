@@ -33,8 +33,8 @@
     <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center z-[9999] transition-opacity duration-300">
         <div id="loading-content" class="flex flex-col items-center justify-center">
             <div class="animate-spin rounded-full h-12 w-12 border-4 border-emerald-500 border-t-transparent mb-4"></div>
-            <p class="text-white font-medium text-lg">正在連線取得 Edimax 空氣盒子即時數據...</p>
-            <p class="text-slate-400 text-xs mt-2">現正同步載入台灣行政區邊界與感測點分佈</p>
+            <p class="text-white font-medium text-lg">正在下載空氣盒子即時 GZIP 壓縮檔...</p>
+            <p class="text-slate-400 text-xs mt-2" id="loading-subtext">現正啟動瀏覽器硬體進行本地即時解壓縮 (DecompressionStream)...</p>
         </div>
     </div>
 
@@ -65,8 +65,7 @@
     </div>
 
     <script>
-        // 1. 初始化全螢幕地圖
-        // 啟用 Leaflet Canvas 渲染引擎 (優化上千點位流暢度)
+        // 1. 初始化全螢幕地圖，並啟用高效率 Canvas 渲染引擎
         const map = L.map('map', {
             center: [23.85, 121.0],
             zoom: 8,
@@ -78,7 +77,6 @@
 
         map.zoomControl.setPosition('topleft');
 
-        // 使用 CartoDB Positron 極簡背景
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '&copy; OpenStreetMap &copy; CARTO'
         }).addTo(map);
@@ -86,21 +84,36 @@
         // 2. PM2.5 顏色分級
         function getPm25Color(v) {
             if (v === undefined || v === null || v < 0) return '#cbd5e1';
-            return v > 250.4 ? '#7f1d1d' : // 褐紅
-                   v > 150.4 ? '#a855f7' : // 紫
-                   v > 54.4  ? '#ef4444' : // 紅
-                   v > 35.4  ? '#f97316' : // 橘
-                   v > 15.4  ? '#eab308' : // 黃
-                               '#10b981';  // 綠
+            return v > 250.4 ? '#7f1d1d' : 
+                   v > 150.4 ? '#a855f7' : 
+                   v > 54.4  ? '#ef4444' : 
+                   v > 35.4  ? '#f97316' : 
+                   v > 15.4  ? '#eab308' : 
+                               '#10b981';  
         }
 
-        // 3. API 串接設定與 CORS 繞過路徑
-        // 由於瀏覽器安全性政策，採用 corsproxy.io 作為穩定的 API 轉介
-        const airboxUrl = 'https://corsproxy.io/?https://pm25.lass-net.org/data/last-all-airbox.json';
-        const airboxBackupUrl = 'https://api.allorigins.win/raw?url=https://pm25.lass-net.org/data/last-all-airbox.json';
+        // 3. API 串接設定 (取得正確的 .json.gz 壓縮檔)
+        const airboxUrl = 'https://corsproxy.io/?https://pm25.lass-net.org/data/last-all-airbox.json.gz';
+        const airboxBackupUrl = 'https://api.allorigins.win/raw?url=https://pm25.lass-net.org/data/last-all-airbox.json.gz';
         const countyUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
 
-        // 4. 載入函式
+        // 4. 下載與「本地即時解壓縮」的核心代碼
+        async function fetchAndDecompressGzip(url) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("HTTP 狀態異常: " + response.status);
+            
+            // 使用現代瀏覽器原生支援的 DecompressionStream
+            if (typeof DecompressionStream !== 'undefined') {
+                const ds = new DecompressionStream('gzip');
+                const decompressedStream = response.body.pipeThrough(ds);
+                const text = await new Response(decompressedStream).text();
+                return JSON.parse(text);
+            } else {
+                throw new Error("您的瀏覽器過於老舊，不支援原生 GZIP 解壓縮技術。請更新您的瀏覽器。");
+            }
+        }
+
+        // 5. 下載縣市界線 JSON (無壓縮)
         function fetchJson(url) {
             return fetch(url).then(res => {
                 if (!res.ok) throw new Error("載入失敗：" + res.status);
@@ -108,34 +121,34 @@
             });
         }
 
-        // 5. 同步下載縣市圖資與空氣盒子即時數據
+        // 6. 同步載入圖資與解壓空氣盒子數據
         Promise.all([
             fetchJson(countyUrl),
-            fetchJson(airboxUrl).catch(() => fetchJson(airboxBackupUrl))
+            fetchAndDecompressGzip(airboxUrl).catch(() => fetchAndDecompressGzip(airboxBackupUrl))
         ]).then(([countyGeoJson, airboxData]) => {
             
-            // 關閉遮罩
+            // 載入成功，淡出並關閉遮罩
             const overlay = document.getElementById('loading-overlay');
             if (overlay) {
                 overlay.style.opacity = '0';
                 setTimeout(() => overlay.remove(), 300);
             }
 
-            // A. 渲染行政區邊界圖層（供用戶點擊放大）
+            // A. 渲染行政區邊界圖層（支援點擊放大縣市功能）
             L.geoJSON(countyGeoJson, {
                 style: {
                     fillColor: '#334155',
                     weight: 1.2,
                     opacity: 0.9,
                     color: '#94a3b8',
-                    fillOpacity: 0.03  // 保持高透明度，方便底下的點位透出
+                    fillOpacity: 0.03  
                 },
                 onEachFeature: function(feature, layer) {
                     const countyName = feature.properties.COUNTYNAME || feature.properties.COUNTY || "";
                     
                     layer.on({
                         click: function(e) {
-                            // 點擊縣市自動放大聚焦
+                            // 點擊縣市：自動定位並放大
                             map.fitBounds(e.target.getBounds());
                         },
                         mouseover: function(e) {
@@ -161,13 +174,13 @@
                 }
             }).addTo(map);
 
-            // B. 渲染空氣盒子即時點位
+            // B. 渲染空氣盒子即時點位 (解壓後的 JSON 數據)
             if (airboxData && airboxData.feeds) {
                 airboxData.feeds.forEach(feed => {
                     const lat = parseFloat(feed.gps_lat);
                     const lon = parseFloat(feed.gps_lon);
 
-                    // 數據篩選：確保經緯度座標正確落在台灣地區
+                    // 經緯度篩選確保在台灣範圍
                     if (!isNaN(lat) && !isNaN(lon) && lat > 21.5 && lat < 26.5 && lon > 118.0 && lon < 122.5) {
                         const pm25 = feed.s_d0;
                         const temp = feed.s_t0;
@@ -179,7 +192,7 @@
                         const marker = L.circleMarker([lat, lon], {
                             radius: 5,
                             fillColor: getPm25Color(pm25),
-                            color: '#ffffff', // 白色外框，使圓點更清晰
+                            color: '#ffffff', 
                             weight: 1,
                             opacity: 0.9,
                             fillOpacity: 0.85
@@ -220,15 +233,15 @@
             }
 
         }).catch(err => {
-            console.error("即時空氣盒子圖資載入失敗：", err);
+            console.error("解壓縮與載入流程失敗：", err);
             
-            // 異常捕獲解除黑屏遮罩
+            // 網路或解壓出錯時顯示修復按鈕
             const container = document.getElementById('loading-overlay');
             if (container) {
                 container.innerHTML = `
                     <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm text-center border border-slate-200">
                         <p class="text-red-500 font-bold text-lg mb-2">⚠️ 即時數據獲取失敗</p>
-                        <p class="text-slate-600 text-sm mb-4">無法透過中研院開放平台取得空氣盒子即時資訊。這通常是因為對方的伺服器臨時維護或網路塞車。</p>
+                        <p class="text-slate-600 text-sm mb-4">解壓縮失敗或外部 API 連線不穩定。這通常是由於 LASS 平台臨時連線中斷所致。</p>
                         <button onclick="window.location.reload()" class="bg-slate-800 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-slate-700 transition">重新整理網頁</button>
                     </div>
                 `;
