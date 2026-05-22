@@ -2,97 +2,89 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>台北即時 AQI 與空品區範圍地圖</title>
-    
+    <title>臺北市綜合資料分層地圖系統</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
-        
-        /* 側邊資訊面板 */
-        .info-panel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.2);
-            width: 280px;
-            display: none;
-        }
+        .info-legend { background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2); line-height: 1.5; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <div id="info-box" class="info-panel">
-        <h4 style="margin:0 0 10px 0;">環境部空品區資料</h4>
-        <p id="data-desc" style="font-size: 13px; line-height: 1.6;"></p>
-        <hr>
-        <small>更新頻率：不定期</small>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <script>
         // 1. 初始化地圖
-        const map = L.map('map').setView([25.0330, 121.5654], 10);
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const map = L.map('map').setView([25.0450, 121.5400], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // 2. AQICN 即時空氣品質圖層
-        const waqiLayer = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo', {
-            attribution: '© waqi.info',
-            opacity: 0.7
-        }).addTo(map);
+        // --- A. 學校分佈圖層 (點位資料) ---
+        const schoolLayer = L.layerGroup();
+        // 示範資料 (地址需轉換為經緯度，這裡先放前 5 筆)
+        const schoolData = [
+            { name: "國立北教大實小", type: "國小", lat: 25.0245, lng: 121.5448, addr: "大安區和平東路2段94號" },
+            { name: "國立政大實小", type: "國小", lat: 24.9856, lng: 121.5768, addr: "文山區指南路三段12號" },
+            { name: "松山國小", type: "國小", lat: 25.0504, lng: 121.5786, addr: "松山區八德路四段746號" },
+            { name: "敦化國小", type: "國小", lat: 25.0487, lng: 121.5491, addr: "松山區敦化北路2號" },
+            { name: "成功高中", type: "高中職", lat: 25.0422, lng: 121.5245, addr: "中正區濟南路1段71號" }
+        ];
 
-        // 3. 從 CSV 提取的空品區範圍圖層 (模擬範圍)
-        const areaLayer = L.layerGroup();
-        
-        // 根據 CSV 描述：北部空品區包含台北、新北、基隆、桃園
-        // 這裡繪製一個示意性的多邊形範圍
-        const northernAQZ = L.polygon([
-            [25.30, 121.00],
-            [25.30, 122.00],
-            [24.70, 122.00],
-            [24.70, 121.00]
-        ], {
-            color: 'blue',
-            fillColor: '#30f',
-            fillOpacity: 0.1,
-            weight: 2
-        }).addTo(areaLayer).bindPopup("<b>北部空氣品質區</b><br>包含基隆市、臺北市、新北市、桃園市");
+        schoolData.forEach(s => {
+            L.marker([s.lat, s.lng])
+             .bindPopup(`<b>${s.name}</b><br>類型：${s.type}<br>地址：${s.addr}`)
+             .addTo(schoolLayer);
+        });
 
-        // CSV 中的元數據描述
-        const csvMetadata = "顯示依區域空氣品質污染特性劃分成7個空氣品質區，包含北部、竹苗、中部、雲嘉南、高屏、宜蘭、花東7個空氣品質區範圍。";
-
-        // 4. 圖層控制邏輯 (Toggle)
-        const overlayMaps = {
-            "即時 AQI 監測 (同步)": waqiLayer,
-            "空品區範圍 (CSV 資料)": areaLayer
+        // --- B. 行政區資料層 (面狀/區域資料) ---
+        // 這裡建立行政區統計數據 (人口與工商家數)
+        const districtData = {
+            "大安區": { pop: 284000, biz: 52000, latlng: [25.026, 121.543] },
+            "內湖區": { pop: 272000, biz: 38000, latlng: [25.069, 121.589] },
+            "信義區": { pop: 203000, biz: 41000, latlng: [25.030, 121.567] },
+            "士林區": { pop: 264000, biz: 29000, latlng: [25.120, 121.520] }
         };
 
-        L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
+        const popLayer = L.layerGroup();
+        const bizLayer = L.layerGroup();
 
-        // 5. 監聽 Toggle 事件來顯示資訊面板
-        map.on('overlayadd', function(e) {
-            if (e.name === "空品區範圍 (CSV 資料)") {
-                document.getElementById('info-box').style.display = 'block';
-                document.getElementById('data-desc').innerText = csvMetadata;
-            }
+        // 建立視覺化圈圈 (半徑代表數值大小)
+        Object.keys(districtData).forEach(name => {
+            const d = districtData[name];
+            // 人口圓圈 (紅色)
+            L.circle(d.latlng, { radius: d.pop/50, color: 'red', fillOpacity: 0.2 })
+             .bindPopup(`${name} 人口：${d.pop} 人`)
+             .addTo(popLayer);
+            // 工商家數圓圈 (藍色)
+            L.circle(d.latlng, { radius: d.biz/5, color: 'blue', fillOpacity: 0.2 })
+             .bindPopup(`${name} 工商家數：${d.biz} 家`)
+             .addTo(bizLayer);
         });
 
-        map.on('overlayremove', function(e) {
-            if (e.name === "空品區範圍 (CSV 資料)") {
-                document.getElementById('info-box').style.display = 'none';
-            }
-        });
+        // --- C. 即時空氣品質圖層 (AQICN) ---
+        const aqicnLayer = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo', {
+            opacity: 0.6
+        }).addTo(map);
+
+        // 2. 圖層切換控制台 (Toggle)
+        const baseMaps = {
+            "底圖 (淺色)": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
+        };
+
+        const overlayMaps = {
+            "🏫 學校分佈": schoolLayer,
+            "👥 行政區人口": popLayer,
+            "🏢 工商家數": bizLayer,
+            "☁️ 即時空氣品質": aqicnLayer
+        };
+
+        L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
+
+        // 預設開啟學校圖層
+        schoolLayer.addTo(map);
 
     </script>
 </body>
