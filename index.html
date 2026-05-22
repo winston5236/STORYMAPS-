@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>臺北市學校分佈與即時車流地圖</title>
+    <title>臺北市學校分佈與行政區即時車流地圖</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
@@ -26,7 +26,12 @@
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
 
-        /* 讓車流圖層產生呼吸擴散（光暈）效果的 CSS 設定 */
+        /* 透過 SVG clipPath 裁剪車流圖層，使其僅顯示在點選的行政區內 */
+        .glowing-traffic {
+            clip-path: url(#traffic-clip);
+        }
+
+        /* 車流呼吸擴散效果 */
         .glowing-traffic img {
             animation: pulse-diffusion 3s infinite ease-in-out;
         }
@@ -37,7 +42,6 @@
                 opacity: 0.75;
             }
             50% {
-                /* 擴散狀態：增加模糊半徑與飽和度 */
                 filter: saturate(3) blur(1.8px);
                 opacity: 0.95;
             }
@@ -49,6 +53,15 @@
     </style>
 </head>
 <body class="overflow-hidden font-sans">
+
+    <!-- 用於動態裁剪車流圖層的 SVG 遮罩定義 (不佔空間) -->
+    <svg width="0" height="0" style="position: absolute; width: 0; height: 0; overflow: hidden;">
+        <defs>
+            <clipPath id="traffic-clip" clipPathUnits="userSpaceOnUse">
+                <path id="traffic-clip-path" d="" />
+            </clipPath>
+        </defs>
+    </svg>
 
     <!-- 載入中遮罩 -->
     <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center z-[9999] transition-opacity duration-300">
@@ -62,9 +75,9 @@
     <!-- 左上角懸浮式標題面板 -->
     <div class="absolute top-4 left-16 bg-white/95 backdrop-blur px-5 py-3 rounded-lg shadow-lg z-[1000] border border-slate-200 pointer-events-auto">
         <h1 class="text-lg font-bold text-slate-800 flex items-center gap-1.5">
-            <span>🚗</span> 臺北市學校分佈與即時車流路況
+            <span>🌍</span> 臺北市學校分佈與各縣市即時車流
         </h1>
-        <p class="text-[11px] text-slate-500 mt-0.5">滑鼠懸停至點標可檢視學校資訊 | 右上角可個別切換圖層</p>
+        <p class="text-[11px] text-slate-500 mt-0.5">點選行政區可顯示該區內車流 | 點選地圖空白處可收起車流</p>
     </div>
 
     <!-- 地圖主容器 -->
@@ -193,7 +206,7 @@
             {name: '私立達人高中', type: '高中職', lat: 25.0801, lng: 121.5895, address: '臺北市內湖區內湖路2段314號'},
             {name: '私立泰北高中', type: '高中職', lat: 25.0978, lng: 121.5304, address: '臺北市士林區福林路240號'},
             {name: '私立衛理女中', type: '高中職', lat: 25.1018, lng: 121.5471, address: '臺北市士林區至善路2段321號'},
-            {name: '私立華興高中', type: '高中職', lat: 25.1039, lng: 121.5342, address: '臺北市士林區仰德大道1段101號'},
+            {name: '私立畫興高中', type: '高中職', lat: 25.1039, lng: 121.5342, address: '臺北市士林區仰德大道1段101號'},
             {name: '私立薇閣高中', type: '高中職', lat: 25.1417, lng: 121.4984, address: '臺北市北投區珠海路50號'},
             {name: '私立幼華高中', type: '高中職', lat: 25.1311, lng: 121.4985, address: '臺北市北投區北投路二段55號'},
             {name: '私立奎山實驗高中', type: '高中職', lat: 25.1147, lng: 121.5173, address: '臺北市北投區明德路200號'},
@@ -226,7 +239,7 @@
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         }).addTo(map);
 
-        // 3. 建立帶有光暈與呼吸擴散效果的即時車流 (Google Traffic) 瓦片圖層
+        // 3. 建立即時車流 (Google Traffic) 瓦片圖層，但預設先不加入地圖，等點選行政區後才載入
         const trafficLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=h,traffic&hl=zh-TW&x={x}&y={y}&z={z}', {
             attribution: '&copy; Google Maps Traffic',
             maxZoom: 16,
@@ -238,14 +251,14 @@
         const seniorHighLayer = L.layerGroup();
         const schoolColor = '#4f46e5'; 
         
-        // 預設開啟圖層
-        const activeOverlays = new Set(["國中", "高中職", "即時車流"]);
+        // 追蹤當前啟用的覆蓋物名稱
+        const activeOverlays = new Set(["國中", "高中職"]);
 
         // 生成學校標記
         schoolData.forEach(school => {
             const marker = L.circleMarker([school.lat, school.lng], {
                 radius: 6,
-                fillColor: schoolColor, // 國高中皆使用相同的靛藍色
+                fillColor: schoolColor, 
                 color: '#ffffff',
                 weight: 1.5,
                 opacity: 1,
@@ -274,14 +287,16 @@
             }
         });
 
-        // 預設將國中、高中職與即時車流圖層加入地圖
+        // 預設將學校圖層加入地圖
         juniorHighLayer.addTo(map);
         seniorHighLayer.addTo(map);
-        trafficLayer.addTo(map);
 
         // 5. 載入並渲染行政區 GeoJSON
         const primaryGeoJsonUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
         const fallbackGeoJsonUrl = 'https://raw.githubusercontent.com/ronnywang/twgeojson/master/twcounty2010.2.json';
+
+        // 用於追蹤當前被選取的行政區 Feature
+        let clickedFeature = null;
 
         function loadGeoJson(url) {
             return fetch(url).then(res => {
@@ -320,7 +335,7 @@
                                     color: '#94a3b8',
                                     fillOpacity: 0.5
                                 });
-                                // 確保學校標記與路況資訊能保持在最上層
+                                // 確保學校標記保持在上層
                                 juniorHighLayer.eachLayer(m => m.bringToFront());
                                 seniorHighLayer.eachLayer(m => m.bringToFront());
                             },
@@ -332,17 +347,32 @@
                                 });
                             },
                             click: function(e) {
+                                // 阻止事件向上傳遞到地圖背景
+                                L.DomEvent.stopPropagation(e);
+
                                 map.fitBounds(e.target.getBounds());
+                                
+                                // 設定當前點選的行政區
+                                clickedFeature = feature;
+
+                                // 顯示車流圖層
+                                if (!map.hasLayer(trafficLayer)) {
+                                    trafficLayer.addTo(map);
+                                }
+                                
+                                // 更新裁剪與圖例
+                                updateTrafficClip();
+                                activeOverlays.add("即時車流");
+                                updateDynamicLegend();
                             }
                         });
                     }
                 }).addTo(map);
 
-                // 設定圖層切換控制
+                // 設定圖層切換控制 (移除「即時車流」，將其完全交由點選行政區互動控制)
                 const overlayMaps = {
                     "國中": juniorHighLayer,
                     "高中職": seniorHighLayer,
-                    "即時車流": trafficLayer,
                     "行政區邊界": boundaryLayer
                 };
 
@@ -350,21 +380,37 @@
 
                 // 監聽圖層切換事件更新圖例
                 map.on('overlayadd', function(e) {
-                    if (e.name === "國中" || e.name === "高中職" || e.name === "即時車流") {
+                    if (e.name === "國中" || e.name === "高中職") {
                         activeOverlays.add(e.name);
                         updateDynamicLegend();
                     }
                 });
 
                 map.on('overlayremove', function(e) {
-                    if (e.name === "國中" || e.name === "高中職" || e.name === "即時車流") {
+                    if (e.name === "國中" || e.name === "高中職") {
                         activeOverlays.delete(e.name);
                         updateDynamicLegend();
                     }
                 });
 
-                // 初始化圖例
-                updateDynamicLegend();
+                // 預設主動「點選」並聚焦臺北市
+                const taipeiFeature = geojson.features.find(f => {
+                    const name = f.properties.COUNTYNAME || f.properties.COUNTY || f.properties.name || "";
+                    return name.replace(/台/g, '臺') === "臺北市";
+                });
+
+                if (taipeiFeature) {
+                    clickedFeature = taipeiFeature;
+                    trafficLayer.addTo(map);
+                    activeOverlays.add("即時車流");
+                    // 稍作延遲確保圖層節點已附著到 DOM，即可順利執行首次裁剪
+                    setTimeout(() => {
+                        updateTrafficClip();
+                        updateDynamicLegend();
+                    }, 50);
+                } else {
+                    updateDynamicLegend();
+                }
             })
             .catch(err => {
                 console.error("地圖邊界數據載入失敗:", err);
@@ -380,7 +426,67 @@
                 }
             });
 
-        // 6. 動態圖例管理器
+        // 6. 點擊地圖空白處，可重設 (隱藏) 即時車流
+        map.on('click', function() {
+            clickedFeature = null;
+            if (map.hasLayer(trafficLayer)) {
+                map.removeLayer(trafficLayer);
+            }
+            updateTrafficClip();
+            activeOverlays.delete("即時車流");
+            updateDynamicLegend();
+        });
+
+        // 7. 計算與更新 SVG 裁剪路徑
+        function updateTrafficClip() {
+            const clipPathEl = document.getElementById('traffic-clip-path');
+            if (!clipPathEl) return;
+            
+            if (clickedFeature && map.hasLayer(trafficLayer)) {
+                const pathData = getSvgPathFromFeature(clickedFeature);
+                clipPathEl.setAttribute('d', pathData);
+            } else {
+                clipPathEl.setAttribute('d', ''); // 清空裁剪路徑，等同於全部遮蔽
+            }
+        }
+
+        // 當地圖進行縮放、拖曳移動時，必須同步重新計算轉換像素座標
+        map.on('move zoom viewreset drag', updateTrafficClip);
+
+        // 8. 經緯度座標轉換為網頁像素點函數
+        function getSvgPathFromFeature(feature) {
+            if (!feature || !feature.geometry) return '';
+            const type = feature.geometry.type;
+            const coords = feature.geometry.coordinates;
+            let pathData = '';
+
+            // 將單一經緯度環陣列轉換成 SVG "M x y L x y... Z" 路徑指令
+            function ringToPath(ring) {
+                let str = '';
+                for (let i = 0; i < ring.length; i++) {
+                    // ring[i] 為 [lng, lat]
+                    const pt = map.latLngToContainerPoint([ring[i][1], ring[i][0]]);
+                    str += (i === 0 ? 'M' : 'L') + ` ${pt.x} ${pt.y} `;
+                }
+                str += 'Z ';
+                return str;
+            }
+
+            if (type === 'Polygon') {
+                coords.forEach(ring => {
+                    pathData += ringToPath(ring);
+                });
+            } else if (type === 'MultiPolygon') {
+                coords.forEach(polygon => {
+                    polygon.forEach(ring => {
+                        pathData += ringToPath(ring);
+                    });
+                });
+            }
+            return pathData;
+        }
+
+        // 9. 動態圖例管理器
         function updateDynamicLegend() {
             const container = document.getElementById('legend-content');
             if (!container) return;
@@ -413,12 +519,13 @@
                         </div>
                     `;
                 } else if (layerName === "即時車流") {
+                    const countyName = clickedFeature ? (clickedFeature.properties.COUNTYNAME || clickedFeature.properties.COUNTY || clickedFeature.properties.name || "選取區") : "";
                     html += `
+                        <p class="text-[9px] text-indigo-600 font-semibold mb-1">📍 裁剪範圍：${countyName}</p>
                         <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#10b981"></span>綠色：道路暢通</div>
                         <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#facc15"></span>黃色：車速稍慢</div>
                         <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#f97316"></span>橘色：車流擁擠</div>
                         <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#ef4444"></span>紅色：嚴重堵塞</div>
-                        <div class="text-[9px] text-slate-400 italic mt-1.5">※ 車流線條已啟用動態光暈擴散效果。</div>
                     `;
                 }
 
