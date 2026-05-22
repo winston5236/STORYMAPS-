@@ -2,90 +2,117 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>臺北市綜合資料分層地圖系統</title>
+    <title>臺北市學校、人口與空品歷史統計地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
-        .info-legend { background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.2); line-height: 1.5; }
+        .data-panel {
+            position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3); max-width: 350px;
+            max-height: 80vh; overflow-y: auto;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 10px; }
+        th, td { border: 1px solid #ddd; padding: 4px; text-align: center; }
+        th { background-color: #f4f4f4; position: sticky; top: 0; }
+        .panel-title { font-weight: bold; display: block; margin-bottom: 5px; color: #2c3e50; border-bottom: 2px solid #3498db; }
+        small { color: #666; font-size: 10px; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
+    <div class="data-panel" id="combined-panel" style="display:none;">
+        <span class="panel-title">113年 綜合指標對照</span>
+        
+        <strong>1. 空氣品質監測 (北部縣市)</strong>
+        <table>
+            <tr><th>縣市</th><th>TSP</th><th>臭氧</th><th>AQI>100%</th></tr>
+            <tr style="background:#e3f2fd"><td>臺北市</td><td>30.5</td><td>48.61</td><td>1.97%</td></tr>
+            <tr><td>新北市</td><td>35.2</td><td>50.99</td><td>3.28%</td></tr>
+            <tr><td>桃園市</td><td>-</td><td>49.11</td><td>2.80%</td></tr>
+            <tr><td>基隆市</td><td>34.8</td><td>49.09</td><td>1.64%</td></tr>
+        </table>
+
+        <strong>2. 臺北市工商總家數 (行政區範例)</strong>
+        <table>
+            <tr><th>行政區</th><th>總家數</th><th>主要產業</th></tr>
+            <tr><td>中山區</td><td>32,451</td><td>批發零售業</td></tr>
+            <tr><td>大安區</td><td>28,942</td><td>專業科學技術</td></tr>
+            <tr><td>內湖區</td><td>15,670</td><td>資訊通訊傳播</td></tr>
+        </table>
+
+        <strong>3. 人口指標 (113年12月)</strong>
+        <table>
+            <tr><th>項目</th><th>數值</th><th>說明</th></tr>
+            <tr><td>臺北市總人口</td><td>2,504,831</td><td>持續負成長</td></tr>
+            <tr><td>性別比</td><td>90.2</td><td>女多於男</td></tr>
+            <tr><td>人口密度</td><td>9,215</td><td>人/km²</td></tr>
+        </table>
+        
+        <small>數據來源：環境部空品資料、內政部人口統計、臺北市工商普查</small>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         // 1. 初始化地圖
         const map = L.map('map').setView([25.0450, 121.5400], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap'
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
-        // --- A. 學校分佈圖層 (點位資料) ---
+        // 2. 學校圖層
         const schoolLayer = L.layerGroup();
-        // 示範資料 (地址需轉換為經緯度，這裡先放前 5 筆)
-        const schoolData = [
-            { name: "國立北教大實小", type: "國小", lat: 25.0245, lng: 121.5448, addr: "大安區和平東路2段94號" },
-            { name: "國立政大實小", type: "國小", lat: 24.9856, lng: 121.5768, addr: "文山區指南路三段12號" },
-            { name: "松山國小", type: "國小", lat: 25.0504, lng: 121.5786, addr: "松山區八德路四段746號" },
-            { name: "敦化國小", type: "國小", lat: 25.0487, lng: 121.5491, addr: "松山區敦化北路2號" },
-            { name: "成功高中", type: "高中職", lat: 25.0422, lng: 121.5245, addr: "中正區濟南路1段71號" }
+        const schools = [
+            { name: "國立北教大實小", type: "國小", pos: [25.0245, 121.5448] },
+            { name: "國立政大實小", type: "國小", pos: [24.9856, 121.5768] },
+            { name: "松山國小", type: "國小", pos: [25.0504, 121.5786] },
+            { name: "成功高中", type: "高中職", pos: [25.0422, 121.5245] },
+            { name: "臺北市立大學", type: "大學", pos: [25.0354, 121.5132] }
         ];
-
-        schoolData.forEach(s => {
-            L.marker([s.lat, s.lng])
-             .bindPopup(`<b>${s.name}</b><br>類型：${s.type}<br>地址：${s.addr}`)
+        schools.forEach(s => {
+            L.circleMarker(s.pos, { radius: 6, color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.8 })
+             .bindPopup(`<b>${s.name}</b><br>類別：${s.type}`)
              .addTo(schoolLayer);
         });
 
-        // --- B. 行政區資料層 (面狀/區域資料) ---
-        // 這裡建立行政區統計數據 (人口與工商家數)
-        const districtData = {
-            "大安區": { pop: 284000, biz: 52000, latlng: [25.026, 121.543] },
-            "內湖區": { pop: 272000, biz: 38000, latlng: [25.069, 121.589] },
-            "信義區": { pop: 203000, biz: 41000, latlng: [25.030, 121.567] },
-            "士林區": { pop: 264000, biz: 29000, latlng: [25.120, 121.520] }
+        // 3. 綜合資料圖層 (整合空氣品質與工商數據)
+        const dataLayer = L.layerGroup();
+        
+        // 臺北市核心區
+        L.circle([25.0330, 121.5654], {
+            radius: 4000, color: '#e67e22', weight: 2, fillOpacity: 0.1
+        }).bindPopup(`
+            <div style="width:200px">
+                <b>臺北市年度綜合指標</b><hr>
+                <b>空品：</b>AQI不良率 1.97%<br>
+                <b>工商：</b>總家數約 24 萬家<br>
+                <b>人口：</b>密度最高區(大安區)
+            </div>
+        `).addTo(dataLayer);
+
+        // 4. 即時同步 AQI 圖層
+        const realTimeAQI = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo');
+
+        // 5. 圖層開關控制
+        const overlays = {
+            "🏫 學校分佈": schoolLayer,
+            "📊 113年綜合統計資料": dataLayer,
+            "☁️ 即時空氣品質 (同步)": realTimeAQI
         };
+        L.control.layers(null, overlays, { collapsed: false }).addTo(map);
 
-        const popLayer = L.layerGroup();
-        const bizLayer = L.layerGroup();
-
-        // 建立視覺化圈圈 (半徑代表數值大小)
-        Object.keys(districtData).forEach(name => {
-            const d = districtData[name];
-            // 人口圓圈 (紅色)
-            L.circle(d.latlng, { radius: d.pop/50, color: 'red', fillOpacity: 0.2 })
-             .bindPopup(`${name} 人口：${d.pop} 人`)
-             .addTo(popLayer);
-            // 工商家數圓圈 (藍色)
-            L.circle(d.latlng, { radius: d.biz/5, color: 'blue', fillOpacity: 0.2 })
-             .bindPopup(`${name} 工商家數：${d.biz} 家`)
-             .addTo(bizLayer);
+        // 監聽面板顯示
+        map.on('overlayadd', (e) => {
+            if(e.name === "📊 113年綜合統計資料") document.getElementById('combined-panel').style.display = 'block';
+        });
+        map.on('overlayremove', (e) => {
+            if(e.name === "📊 113年綜合統計資料") document.getElementById('combined-panel').style.display = 'none';
         });
 
-        // --- C. 即時空氣品質圖層 (AQICN) ---
-        const aqicnLayer = L.tileLayer('https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=demo', {
-            opacity: 0.6
-        }).addTo(map);
-
-        // 2. 圖層切換控制台 (Toggle)
-        const baseMaps = {
-            "底圖 (淺色)": L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png')
-        };
-
-        const overlayMaps = {
-            "🏫 學校分佈": schoolLayer,
-            "👥 行政區人口": popLayer,
-            "🏢 工商家數": bizLayer,
-            "☁️ 即時空氣品質": aqicnLayer
-        };
-
-        L.control.layers(baseMaps, overlayMaps, { collapsed: false }).addTo(map);
-
-        // 預設開啟學校圖層
-        schoolLayer.addTo(map);
-
+        schoolLayer.addTo(map); // 預設開啟
     </script>
 </body>
 </html>
