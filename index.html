@@ -25,6 +25,27 @@
             padding: 10px;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         }
+
+        /* 讓車流圖層產生呼吸擴散（光暈）效果的 CSS 設定 */
+        .glowing-traffic img {
+            animation: pulse-diffusion 3s infinite ease-in-out;
+        }
+
+        @keyframes pulse-diffusion {
+            0% {
+                filter: saturate(2) blur(0.2px);
+                opacity: 0.75;
+            }
+            50% {
+                /* 擴散狀態：增加模糊半徑與飽和度 */
+                filter: saturate(3) blur(1.8px);
+                opacity: 0.95;
+            }
+            100% {
+                filter: saturate(2) blur(0.2px);
+                opacity: 0.75;
+            }
+        }
     </style>
 </head>
 <body class="overflow-hidden font-sans">
@@ -118,292 +139,4 @@
             {name: '市立桃源國中', type: '國中', lat: 25.1287, lng: 121.4883, address: '臺北市北投區中央北路4段48號'},
             {name: '市立石牌國中', type: '國中', lat: 25.1147, lng: 121.5135, address: '臺北市北投區石牌路1段139號'},
             {name: '市立關渡國中', type: '國中', lat: 25.1251, lng: 121.4674, address: '臺北市北投區知行路212號'},
-            {name: '私立立人國際國中小', type: '國中', lat: 25.0312, lng: 121.5516, address: '臺北市大安區安和路2段99號'},
-            {name: '市立西松高中', type: '高中職', lat: 25.0538, lng: 121.5658, address: '臺北市松山區健康路325巷7號'},
-            {name: '市立中崙高中', type: '高中職', lat: 25.0487, lng: 121.5593, address: '臺北市松山區八德路4段101號'},
-            {name: '市立松山高中', type: '高中職', lat: 25.0425, lng: 121.5633, address: '臺北市信義區基隆路1段156號'},
-            {name: '市立永春高中', type: '高中職', lat: 25.0315, lng: 121.5833, address: '臺北市信義區松山路654號'},
-            {name: '國立師大附中', type: '高中職', lat: 25.0365, lng: 121.5401, address: '臺北市大安區信義路3段143號'},
-            {name: '市立和平高中', type: '高中職', lat: 25.0205, lng: 121.5471, address: '臺北市大安區臥龍街100號'},
-            {name: '本市芳和實中', type: '高中職', lat: 25.0185, lng: 121.5484, address: '臺北市大安區臥龍街170號'},
-            {name: '市立中山女中', type: '高中職', lat: 25.0476, lng: 121.5404, address: '臺北市中山區長安東路2段141號'},
-            {name: '市立大同高中', type: '高中職', lat: 25.0569, lng: 121.5342, address: '臺北市中山區長春路167號'},
-            {name: '市立大直高中', type: '高中職', lat: 25.0801, lng: 121.5365, address: '臺北市中山區北安路420號'},
-            {name: '市立建國高中', type: '高中職', lat: 25.0316, lng: 121.5126, address: '臺北市中正區南海路56號'},
-            {name: '市立成功高中', type: '高中職', lat: 25.0428, lng: 121.5244, address: '臺北市中正區濟南路1段71號'},
-            {name: '市立北一女中', type: '高中職', lat: 25.0392, lng: 121.5134, address: '臺北市中正區重慶南路1段165號'},
-            {name: '市立數位實中', type: '高中職', lat: 25.0402, lng: 121.5165, address: '臺北市中正區公園路21號'},
-            {name: '市立明倫高中', type: '高中職', lat: 25.0754, lng: 121.5191, address: '臺北市大同區承德路3段336號'},
-            {name: '市立成淵高中', type: '高中職', lat: 25.0608, lng: 121.5197, address: '臺北市大同區承德路2段235號'},
-            {name: '市立華江高中', type: '高中職', lat: 25.0312, lng: 121.4965, address: '臺北市萬華區西藏路213號'},
-            {name: '市立大理高中', type: '高中職', lat: 25.0264, lng: 121.4886, address: '臺北市萬華區長順街2號'},
-            {name: '市立景美女中', type: '高中職', lat: 24.9818, lng: 121.5542, address: '臺北市文山區木新路3段312號'},
-            {name: '市立萬芳高中', type: '高中職', lat: 24.9984, lng: 121.5564, address: '臺北市文山區興隆路3段115巷1號'},
-            {name: '國立政大附中', type: '高中職', lat: 24.9819, lng: 121.5947, address: '臺北市文山區政大一街353號'},
-            {name: '市立南港高中', type: '高中職', lat: 25.0519, lng: 121.5901, address: '臺北市南港區向陽路21號'},
-            {name: '市立育成高中', type: '高中職', lat: 25.0575, lng: 121.6115, address: '臺北市南港區重陽路366號'},
-            {name: '市立內湖高中', type: '高中職', lat: 25.0776, lng: 121.5839, address: '臺北市內湖區文德路218號'},
-            {name: '市立麗山高中', type: '高中職', lat: 25.0874, lng: 121.5779, address: '臺北市內湖區環山路2段100號'},
-            {name: '市立南湖高中', type: '高中職', lat: 25.0683, lng: 121.6133, address: '臺北市內湖區康寧路3段220號'},
-            {name: '市立陽明高中', type: '高中職', lat: 25.0931, lng: 121.5126, address: '臺北市士林區中正路510號'},
-            {name: '市立百齡高中', type: '高中職', lat: 25.0864, lng: 121.5204, address: '臺北市士林區承德路4段177號'},
-            {name: '市立復興高中', type: '高中職', lat: 25.1417, lng: 121.5002, address: '臺北市北投區復興四路70號'},
-            {name: '市立中正高中', type: '高中職', lat: 25.1068, lng: 121.5117, address: '臺北市北投區文林北路77號'},
-            {name: '市立松山家商', type: '高中職', lat: 25.0311, lng: 121.5838, address: '臺北市信義區松山路655號'},
-            {name: '市立松山工農', type: '高中職', lat: 25.0410, lng: 121.5694, address: '臺北市信義區忠孝東路5段236巷15號'},
-            {name: '市立大安高工', type: '高中職', lat: 25.0298, lng: 121.5435, address: '臺北市大安區復興南路2段52號'},
-            {name: '市立木柵高工', type: '高中職', lat: 24.9972, lng: 121.5746, address: '臺北市文山區木柵路4段77號'},
-            {name: '市立南港高工', type: '高中職', lat: 25.0560, lng: 121.6067, address: '臺北市南港區興中路29號'},
-            {name: '市立內湖高工', type: '高中職', lat: 25.0811, lng: 121.5721, address: '臺北市內湖區內湖路1段520號'},
-            {name: '市立士林高商', type: '高中職', lat: 25.0926, lng: 121.5168, address: '臺北市士林區士商路150號'},
-            {name: '私立協和祐德高中', type: '高中職', lat: 25.0435, lng: 121.5831, address: '臺北市信義區忠孝東路5段790巷27號'},
-            {name: '私立延平高中', type: '高中職', lat: 25.0381, lng: 121.5375, address: '臺北市大安區建國南路1段275號'},
-            {name: '私立金甌女中', type: '高中職', lat: 25.0336, lng: 121.5244, address: '臺北市大安區杭州南路2段1號'},
-            {name: '私立復興實驗高中', type: '高中職', lat: 25.0374, lng: 121.5487, address: '臺北市大安區敦化南路1段262號'},
-            {name: '私立大同高中', type: '高中職', lat: 25.0645, lng: 121.5233, address: '臺北市中山區中山北路3段40號'},
-            {name: '私立強恕高中', type: '高中職', lat: 25.0256, lng: 121.5197, address: '臺北市中正區汀州路2段143號'},
-            {name: '私立靜修高中', type: '高中職', lat: 25.0569, lng: 121.5144, address: '臺北市大同區寧夏路59號'},
-            {name: '私立東山高中', type: '高中職', lat: 24.9669, lng: 121.5644, address: '臺北市文山區老泉街26巷3號'},
-            {name: '私立滬江高中', type: '高中職', lat: 24.9922, lng: 121.5385, address: '臺北市文山區羅斯福路6段336號'},
-            {name: '私立大誠高中', type: '高中職', lat: 24.9856, lng: 121.5731, address: '臺北市文山區秀明路2段175號'},
-            {name: '私立再興中學', type: '高中職', lat: 24.9852, lng: 121.5542, address: '臺北市文山區興隆路4段2號'},
-            {name: '私立景文高中', type: '高中職', lat: 24.9868, lng: 121.5694, address: '臺北市文山區保儀路127號'},
-            {name: '私立靜心高中', type: '高中職', lat: 24.9976, lng: 121.5414, address: '臺北市文山區興隆路2段46號'},
-            {name: '私立達人高中', type: '高中職', lat: 25.0801, lng: 121.5895, address: '臺北市內湖區內湖路2段314號'},
-            {name: '私立泰北高中', type: '高中職', lat: 25.0978, lng: 121.5304, address: '臺北市士林區福林路240號'},
-            {name: '私立衛理女中', type: '高中職', lat: 25.1018, lng: 121.5471, address: '臺北市士林區至善路2段321號'},
-            {name: '私立華興高中', type: '高中職', lat: 25.1039, lng: 121.5342, address: '臺北市士林區仰德大道1段101號'},
-            {name: '私立薇閣高中', type: '高中職', lat: 25.1417, lng: 121.4984, address: '臺北市北投區珠海路50號'},
-            {name: '私立幼華高中', type: '高中職', lat: 25.1311, lng: 121.4985, address: '臺北市北投區北投路二段55號'},
-            {name: '私立奎山實驗高中', type: '高中職', lat: 25.1147, lng: 121.5173, address: '臺北市北投區明德路200號'},
-            {name: '私立育達高中', type: '高中職', lat: 25.0508, lng: 121.5526, address: '臺北市松山區寧安街12號'},
-            {name: '私立東方工商', type: '高中職', lat: 25.0331, lng: 121.5516, address: '臺北市大安區信義路4段186巷8號'},
-            {name: '私立喬治工商', type: '高中職', lat: 25.0251, lng: 121.5552, address: '臺北市信義區基隆路2段155號'},
-            {name: '私立開平餐飲', type: '高中職', lat: 25.0271, lng: 121.5428, address: '臺北市大安區復興南路2段148巷24號'},
-            {name: '私立稻江護家', type: '高中職', lat: 25.0664, lng: 121.5262, address: '臺北市中山區新生北路3段55號'},
-            {name: '私立開南高中', type: '高中職', lat: 25.0428, lng: 121.5226, address: '臺北市中正區濟南路一段6號'},
-            {name: '私立稻江高商', type: '高中職', lat: 25.0628, lng: 121.5117, address: '臺北市大同區民權西路225巷24號'},
-            {name: '私立華岡藝校', type: '高中職', lat: 25.1368, lng: 121.5458, address: '臺北市士林區建業路73巷8號'},
-            {name: '私立惇敘工商', type: '高中職', lat: 25.1435, lng: 121.5204, address: '臺北市北投區泉源路221號'},
-            {name: '私立南華高中', type: '高中職', lat: 25.0197, lng: 121.5332, address: '臺北市中正區汀州路3段58號'},
-            {name: '私立志仁高中', type: '高中職', lat: 25.0528, lng: 121.5187, address: '臺北市大同區南京西路64巷17號'}
-        ];
-
-        // 2. 初始化地圖（中心點設在臺北市區）
-        const map = L.map('map', {
-            center: [25.045, 121.55],
-            zoom: 12,
-            minZoom: 8,
-            maxZoom: 16,
-            zoomControl: true
-        });
-
-        map.zoomControl.setPosition('topleft');
-
-        // 使用淺色底圖
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        }).addTo(map);
-
-        // 3. 建立即時車流 (Google Traffic) 瓦片圖層，並設定透明度使底圖更清晰
-        const trafficLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=h,traffic&hl=zh-TW&x={x}&y={y}&z={z}', {
-            attribution: '&copy; Google Maps Traffic',
-            maxZoom: 16,
-            opacity: 0.75
-        });
-
-        // 4. 建立學校圖層群組（國中與高中職獨立分開）
-        const juniorHighLayer = L.layerGroup();
-        const seniorHighLayer = L.layerGroup();
-        
-        // 預設開啟「國中」、「高中職」與「即時車流」
-        const activeOverlays = new Set(["國中", "高中職", "即時車流"]);
-
-        // 生成學校標記
-        schoolData.forEach(school => {
-            const fillColor = school.type === '國中' ? '#0284c7' : '#db2777';
-            const marker = L.circleMarker([school.lat, school.lng], {
-                radius: 6,
-                fillColor: fillColor,
-                color: '#ffffff',
-                weight: 1.5,
-                opacity: 1,
-                fillOpacity: 0.85
-            });
-
-            const tooltipHtml = `
-                <div class="custom-tooltip-content">
-                    <div class="font-bold text-slate-800 border-b border-slate-100 pb-1 mb-1.5 text-xs">${school.name}</div>
-                    <div class="space-y-0.5 text-[10px] text-slate-500">
-                        <div><span class="font-medium text-slate-700">• 類型：</span>${school.type}</div>
-                        <div><span class="font-medium text-slate-700">• 地址：</span>${school.address}</div>
-                    </div>
-                </div>
-            `;
-            marker.bindTooltip(tooltipHtml, { sticky: true, className: 'custom-tooltip' });
-
-            marker.on('click', function(e) {
-                map.setView(e.latlng, 15);
-            });
-
-            if (school.type === '國中') {
-                juniorHighLayer.addLayer(marker);
-            } else {
-                seniorHighLayer.addLayer(marker);
-            }
-        });
-
-        // 預設將國中、高中職與即時車流圖層加入地圖
-        juniorHighLayer.addTo(map);
-        seniorHighLayer.addTo(map);
-        trafficLayer.addTo(map);
-
-        // 5. 載入並渲染行政區 GeoJSON
-        const primaryGeoJsonUrl = 'https://cdn.jsdelivr.net/gh/ronnywang/twgeojson@master/twcounty2010.2.json';
-        const fallbackGeoJsonUrl = 'https://raw.githubusercontent.com/ronnywang/twgeojson/master/twcounty2010.2.json';
-
-        function loadGeoJson(url) {
-            return fetch(url).then(res => {
-                if (!res.ok) throw new Error("HTTP 狀態異常 " + res.status);
-                return res.json();
-            });
-        }
-
-        loadGeoJson(primaryGeoJsonUrl)
-            .catch(() => loadGeoJson(fallbackGeoJsonUrl))
-            .then(geojson => {
-                
-                const overlay = document.getElementById('loading-overlay');
-                overlay.style.opacity = '0';
-                setTimeout(() => overlay.remove(), 300);
-
-                // 建立純背景功能的行政區邊界圖層
-                const boundaryLayer = L.geoJSON(geojson, {
-                    style: function() {
-                        return {
-                            fillColor: '#f1f5f9',
-                            weight: 1.5,
-                            opacity: 0.8,
-                            color: '#cbd5e1',
-                            fillOpacity: 0.3
-                        };
-                    },
-                    onEachFeature: function(feature, layer) {
-                        const countyName = feature.properties.COUNTYNAME || feature.properties.COUNTY || feature.properties.name || "";
-                        layer.bindTooltip(`<div class="font-bold text-slate-800 text-xs">${countyName}</div>`, { sticky: true, className: 'custom-tooltip' });
-                        
-                        layer.on({
-                            mouseover: function(e) {
-                                e.target.setStyle({
-                                    weight: 2.5,
-                                    color: '#94a3b8',
-                                    fillOpacity: 0.5
-                                });
-                                // 確保學校標記與路況資訊能保持在邊界圖層之上
-                                juniorHighLayer.eachLayer(m => m.bringToFront());
-                                seniorHighLayer.eachLayer(m => m.bringToFront());
-                            },
-                            mouseout: function(e) {
-                                e.target.setStyle({
-                                    weight: 1.5,
-                                    color: '#cbd5e1',
-                                    fillOpacity: 0.3
-                                });
-                            },
-                            click: function(e) {
-                                map.fitBounds(e.target.getBounds());
-                            }
-                        });
-                    }
-                }).addTo(map);
-
-                // 設定圖層切換控制
-                const overlayMaps = {
-                    "國中": juniorHighLayer,
-                    "高中職": seniorHighLayer,
-                    "即時車流": trafficLayer,
-                    "行政區邊界": boundaryLayer
-                };
-
-                L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
-
-                // 監聽圖層切換事件更新圖例
-                map.on('overlayadd', function(e) {
-                    if (e.name === "國中" || e.name === "高中職" || e.name === "即時車流") {
-                        activeOverlays.add(e.name);
-                        updateDynamicLegend();
-                    }
-                });
-
-                map.on('overlayremove', function(e) {
-                    if (e.name === "國中" || e.name === "高中職" || e.name === "即時車流") {
-                        activeOverlays.delete(e.name);
-                        updateDynamicLegend();
-                    }
-                });
-
-                // 初始化圖例
-                updateDynamicLegend();
-            })
-            .catch(err => {
-                console.error("地圖邊界數據載入失敗:", err);
-                const container = document.getElementById('loading-overlay');
-                if (container) {
-                    container.innerHTML = `
-                        <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm text-center border border-slate-200">
-                            <p class="text-red-500 font-bold text-lg mb-2">⚠️ 圖資載入超時或失敗</p>
-                            <p class="text-slate-600 text-sm mb-4">無法載入邊界地圖。這通常是因為暫時連線至外部 CDN 網路不穩定。</p>
-                            <button onclick="window.location.reload()" class="bg-slate-800 text-white px-5 py-2.5 rounded font-semibold text-sm hover:bg-slate-700 transition">重新整理網頁</button>
-                        </div>
-                    `;
-                }
-            });
-
-        // 6. 動態圖例管理器
-        function updateDynamicLegend() {
-            const container = document.getElementById('legend-content');
-            if (!container) return;
-            container.innerHTML = '';
-
-            if (activeOverlays.size === 0) {
-                container.innerHTML = '<div class="text-xs text-slate-400 italic">無選取圖層</div>';
-                return;
-            }
-
-            activeOverlays.forEach(layerName => {
-                let html = `<div class="border-b border-slate-100 pb-2.5 last:border-0 last:pb-0">
-                    <p class="text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> ${layerName}
-                    </p>
-                    <div class="space-y-1.5 pl-2.5">`;
-
-                if (layerName === "國中") {
-                    html += `
-                        <div class="flex items-center text-[10px] text-slate-600">
-                            <span class="w-2.5 h-2.5 rounded-full mr-2 inline-block" style="background:#0284c7; border: 1px solid #fff"></span>
-                            國中 (共 ${schoolData.filter(s => s.type === '國中').length} 所)
-                        </div>
-                    `;
-                } else if (layerName === "高中職") {
-                    html += `
-                        <div class="flex items-center text-[10px] text-slate-600">
-                            <span class="w-2.5 h-2.5 rounded-full mr-2 inline-block" style="background:#db2777; border: 1px solid #fff"></span>
-                            高中職 (共 ${schoolData.filter(s => s.type === '高中職').length} 所)
-                        </div>
-                    `;
-                } else if (layerName === "即時車流") {
-                    html += `
-                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#10b981"></span>綠色：道路暢通</div>
-                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#facc15"></span>黃色：車速稍慢</div>
-                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#f97316"></span>橘色：車流擁擠</div>
-                        <div class="flex items-center text-[10px] text-slate-600"><span class="w-3.5 h-1 mr-2 inline-block" style="background:#ef4444"></span>紅色：嚴重堵塞</div>
-                    `;
-                }
-
-                html += `</div></div>`;
-                container.innerHTML += html;
-            });
-        }
-    </script>
-</body>
-</html>
+            {name: '私立立人國際國中小
